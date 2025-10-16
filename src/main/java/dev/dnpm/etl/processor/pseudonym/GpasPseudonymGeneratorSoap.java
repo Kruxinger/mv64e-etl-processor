@@ -42,13 +42,13 @@ import org.springframework.web.client.HttpClientErrorException.Unauthorized;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-public class GpasPseudonymGenerator implements Generator {
+public class GpasPseudonymGeneratorSoap implements Generator {
 
     private final FhirContext r4Context;
     private final String gPasUrl;
     private final HttpHeaders httpHeader;
     private final RetryTemplate retryTemplate;
-    private final Logger log = LoggerFactory.getLogger(GpasPseudonymGenerator.class);
+    private final Logger log = LoggerFactory.getLogger(GpasPseudonymGeneratorSoap.class);
     private final RestTemplate restTemplate;
     private final @NotNull String genomDeTanDomain;
     private final @NotNull String pidPsnDomain;
@@ -57,8 +57,8 @@ public class GpasPseudonymGenerator implements Generator {
     private final static String SINGLE_PSN_PART_NAME = "pseudonym";
     private final static String MULTI_PSN_PART_NAME = "value";
 
-    public GpasPseudonymGenerator(GPasConfigProperties gpasCfg, RetryTemplate retryTemplate,
-        RestTemplate restTemplate, AppFhirConfig appFhirConfig) {
+    public GpasPseudonymGeneratorSoap(GPasConfigProperties gpasCfg, RetryTemplate retryTemplate,
+                                  RestTemplate restTemplate, AppFhirConfig appFhirConfig) {
         this.retryTemplate = retryTemplate;
         this.restTemplate = restTemplate;
         this.gPasUrl = gpasCfg.getUri();
@@ -87,7 +87,7 @@ public class GpasPseudonymGenerator implements Generator {
                 final var requestBody = createSinglePsnRequestBody(id, pidPsnDomain);
                 final var responseEntity = getGpasPseudonym(requestBody, createOrGetPsn);
                 final var gPasPseudonymResult = (Parameters) r4Context.newJsonParser()
-                    .parseResource(responseEntity.getBody());
+                        .parseResource(responseEntity.getBody());
 
                 return unwrapPseudonym(gPasPseudonymResult, SINGLE_PSN_PART_NAME);
             }
@@ -95,14 +95,14 @@ public class GpasPseudonymGenerator implements Generator {
                 final var requestBody = createMultiPsnRequestBody(id, genomDeTanDomain);
                 final var responseEntity = getGpasPseudonym(requestBody, createMultiDomainPsn);
                 final var gPasPseudonymResult = (Parameters) r4Context.newJsonParser()
-                    .parseResource(responseEntity.getBody());
+                        .parseResource(responseEntity.getBody());
 
                 return unwrapPseudonym(gPasPseudonymResult, MULTI_PSN_PART_NAME);
             }
         }
         throw new NotImplementedException(
-            "give domain type '%s' is unexpected and is currently not supported!".formatted(
-                domainType));
+                "give domain type '%s' is unexpected and is currently not supported!".formatted(
+                        domainType));
     }
 
     @NotNull
@@ -114,9 +114,9 @@ public class GpasPseudonymGenerator implements Generator {
         }
 
         final var identifier = (Identifier) parameters.get().getPart().stream()
-            .filter(a -> a.getName().equals(targetPartName))
-            .findFirst()
-            .orElseGet(ParametersParameterComponent::new).getValue();
+                .filter(a -> a.getName().equals(targetPartName))
+                .findFirst()
+                .orElseGet(ParametersParameterComponent::new).getValue();
 
         // pseudonym
         return sanitizeValue(identifier.getValue());
@@ -144,8 +144,8 @@ public class GpasPseudonymGenerator implements Generator {
         try {
             var targetUrl = buildRequestUrl(apiEndpoint);
             ResponseEntity<String> responseEntity = retryTemplate.execute(
-                ctx -> restTemplate.exchange(targetUrl, HttpMethod.POST, requestEntity,
-                    String.class));
+                    ctx -> restTemplate.exchange(targetUrl, HttpMethod.POST, requestEntity,
+                            String.class));
             if (responseEntity.getStatusCode().is2xxSuccessful()) {
                 log.debug("API request succeeded. Response: {}", responseEntity.getStatusCode());
                 return responseEntity;
@@ -153,23 +153,23 @@ public class GpasPseudonymGenerator implements Generator {
         } catch (RestClientException rce) {
             if (rce instanceof BadRequest) {
                 String msg = "gPas or request configuration is incorrect. Please check both."
-                    + rce.getMessage();
+                        + rce.getMessage();
                 log.debug(
-                    msg);
+                        msg);
                 throw new PseudonymRequestFailed(msg, rce);
             }
             if (rce instanceof Unauthorized) {
                 var msg = "gPas access credentials are invalid  check your configuration. msg:  '%s".formatted(
-                    rce.getMessage());
+                        rce.getMessage());
                 log.error(msg);
                 throw new PseudonymRequestFailed(msg, rce);
             }
         } catch (Exception unexpected) {
             throw new PseudonymRequestFailed(
-                "API request due unexpected error unsuccessful gPas unsuccessful.", unexpected);
+                    "API request due unexpected error unsuccessful gPas unsuccessful.", unexpected);
         }
         throw new PseudonymRequestFailed(
-            "API request due unexpected error unsuccessful gPas unsuccessful.");
+                "API request due unexpected error unsuccessful gPas unsuccessful.");
 
     }
 
@@ -186,9 +186,9 @@ public class GpasPseudonymGenerator implements Generator {
     protected String createSinglePsnRequestBody(String id, String targetDomain) {
         final var requestParameters = new Parameters();
         requestParameters.addParameter().setName("target")
-            .setValue(new StringType().setValue(targetDomain));
+                .setValue(new StringType().setValue(targetDomain));
         requestParameters.addParameter().setName("original")
-            .setValue(new StringType().setValue(id));
+                .setValue(new StringType().setValue(id));
         final IParser iParser = r4Context.newJsonParser();
         return iParser.encodeResourceToString(requestParameters);
     }
@@ -197,13 +197,13 @@ public class GpasPseudonymGenerator implements Generator {
         final var param = new Parameters();
         ParametersParameterComponent targetParam = param.addParameter().setName("original");
         targetParam.addPart(
-            new ParametersParameterComponent().setName("target")
-                .setValue(new StringType(targetDomain)));
+                new ParametersParameterComponent().setName("target")
+                        .setValue(new StringType(targetDomain)));
         targetParam.addPart(
-            new ParametersParameterComponent().setName("value").setValue(new StringType(id)));
+                new ParametersParameterComponent().setName("value").setValue(new StringType(id)));
         targetParam
-            .addPart(new ParametersParameterComponent().setName("count").setValue(
-                new StringType("1")));
+                .addPart(new ParametersParameterComponent().setName("count").setValue(
+                        new StringType("1")));
 
         final IParser iParser = r4Context.newJsonParser();
         return iParser.encodeResourceToString(param);

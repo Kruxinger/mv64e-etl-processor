@@ -137,7 +137,15 @@ class ConsentProcessor(
             }
 
             val provisionComponent: ProvisionComponent = provisions.first()
-            val provisionCode = getProvisionCode(provisionComponent)
+
+            var provisionCode: String? = null
+            if (provisionComponent.code != null && provisionComponent.code.isNotEmpty()) {
+                val codableConcept: CodeableConcept = provisionComponent.code.first()
+                if (codableConcept.coding != null && codableConcept.coding.isNotEmpty()) {
+                    provisionCode = codableConcept.coding.first().code
+                }
+            }
+
             if (provisionCode != null) {
                 try {
                     val modelProjectConsentPurpose =
@@ -167,17 +175,6 @@ class ConsentProcessor(
                     gIcsConfigProperties.genomeDeConsentVersion
             }
         }
-    }
-
-    private fun getProvisionCode(provisionComponent: ProvisionComponent): String? {
-        var provisionCode: String? = null
-        if (provisionComponent.code != null && provisionComponent.code.isNotEmpty()) {
-            val codableConcept: CodeableConcept = provisionComponent.code.first()
-            if (codableConcept.coding != null && codableConcept.coding.isNotEmpty()) {
-                provisionCode = codableConcept.coding.first().code
-            }
-        }
-        return provisionCode
     }
 
     private fun setGenomDeSubmissionType(mtbFile: Mtb) {
@@ -241,9 +238,9 @@ class ConsentProcessor(
             consent.provision.provision.filter { subProvision ->
                 isRequestDateInRange(requestDate, subProvision.period)
                 // search coding entries of current provision for code and system
-                subProvision.code.map { c -> c.coding }.flatten().any { code ->
+                subProvision.code.map { c -> c.coding }.flatten().firstOrNull { code ->
                     targetCode.equals(code.code) && targetSystem.equals(code.system)
-                }
+                } != null
             }.map { subProvision ->
                 subProvision
             }
@@ -260,11 +257,11 @@ class ConsentProcessor(
         researchAllowedPolicySystem: String?,
         policyRules: Collection<Coding>
     ): Boolean {
-        return policyRules.any { code ->
+        return policyRules.find { code ->
             researchAllowedPolicySystem.equals(code.getSystem()) && (researchAllowedPolicyOid.equals(
                 code.getCode()
             ))
-        }
+        } != null
     }
 
     fun isRequestDateInRange(requestDate: Date?, provPeriod: Period): Boolean {

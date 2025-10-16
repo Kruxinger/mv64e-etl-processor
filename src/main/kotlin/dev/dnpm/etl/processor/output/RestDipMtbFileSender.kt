@@ -23,9 +23,11 @@ import dev.dnpm.etl.processor.PatientPseudonym
 import dev.dnpm.etl.processor.config.RestTargetProperties
 import dev.dnpm.etl.processor.monitoring.ReportService
 import org.springframework.retry.support.RetryTemplate
+import org.springframework.stereotype.Component
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.util.UriComponentsBuilder
 
+@Component
 class RestDipMtbFileSender(
     restTemplate: RestTemplate,
     private val restTargetProperties: RestTargetProperties,

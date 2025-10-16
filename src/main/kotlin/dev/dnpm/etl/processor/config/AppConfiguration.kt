@@ -66,7 +66,8 @@ import kotlin.time.toJavaDuration
         PseudonymizeConfigProperties::class,
         GPasConfigProperties::class,
         ConsentConfigProperties::class,
-        GIcsConfigProperties::class
+        GIcsConfigProperties::class,
+        RestTargetProperties::class
     ]
 )
 @EnableScheduling
