@@ -1,0 +1,248 @@
+{
+    "carePlans": [],
+    "claimResponses": null,
+    "claims": null,
+    "diagnoses": [
+        {
+            "code": {
+                "code": "C61",
+                "display": "Bösartige Neubildung der Prostata",
+                "system": "http://fhir.de/CodeSystem/bfarm/icd-10-gm",
+                "version": "Version 2012"
+            },
+            "germlineCodes": [
+                {
+                    "code": "A01.1",
+                    "display": "Paratyphus A",
+                    "system": "http://fhir.de/CodeSystem/bfarm/icd-10-gm",
+                    "version": "Version 2025"
+                }
+            ],
+            "grading": {
+                "history": [
+                    {
+                        "codes": [
+                            {
+                                "code": "1",
+                                "display": "G1 - gut differenziert",
+                                "system": "https://www.basisdatensatz.de/feld/161/grading",
+                                "version": "2025"
+                            }
+                        ],
+                        "date": "2020-02-14"
+                    }
+                ]
+            },
+            "guidelineTreatmentStatus": {
+                "code": "exhausted",
+                "display": "ausgeschöpft",
+                "system": "dnpm-dip/mtb/diagnosis/guideline-treatment-status",
+                "version": null
+            },
+            "histology": null,
+            "id": "7422758",
+            "notes": null,
+            "patient": {
+                "display": null,
+                "id": "0021103155",
+                "system": null,
+                "type": "Patient"
+            },
+            "recordedOn": "2012-01-01",
+            "staging": null,
+            "topography": {
+                "code": "C61.9",
+                "display": null,
+                "system": null,
+                "version": null
+            },
+            "type": {
+                "history": [
+                    {
+                        "date": "2012-01-01",
+                        "value": {
+                            "code": "main",
+                            "display": null,
+                            "system": null,
+                            "version": null
+                        }
+                    }
+                ]
+            }
+        }
+    ],
+    "episodesOfCare": [
+        {
+            "diagnoses": [
+                {
+                    "display": null,
+                    "id": "7422758",
+                    "system": null,
+                    "type": "Diagnose"
+                }
+            ],
+            "id": "7422758",
+            "patient": {
+                "display": null,
+                "id": "0021103155",
+                "system": null,
+                "type": "Patient"
+            },
+            "period": {
+                "end": null,
+                "start": null
+            }
+        }
+    ],
+    "familyMemberHistories": [],
+    "followUps": null,
+    "guidelineProcedures": [],
+    "guidelineTherapies": [
+        {
+            "basedOn": {
+                "display": null,
+                "id": null,
+                "system": null,
+                "type": null
+            },
+            "category": {
+                "code": "A",
+                "display": "adjuvant",
+                "system": "dnpm-dip/therapy/category",
+                "version": null
+            },
+            "dosage": {
+                "code": "under-50%",
+                "display": "< 50 %",
+                "system": "dnpm-dip/therapy/status-density",
+                "version": null
+            },
+            "id": "7422764",
+            "intent": {
+                "code": "K",
+                "display": "kurativ",
+                "system": "dnpm-dip/therapy/intent",
+                "version": null
+            },
+            "medication": [
+                {
+                    "code": "AMG199",
+                    "display": "AMG199",
+                    "system": "undefined",
+                    "version": null
+                },
+                {
+                    "code": "AMG673",
+                    "display": "AMG673",
+                    "system": "undefined",
+                    "version": null
+                }
+            ],
+            "notes": [
+                "Bemerkung ..."
+            ],
+            "patient": {
+                "display": null,
+                "id": "0021103155",
+                "system": null,
+                "type": "Patient"
+            },
+            "period": {
+                "end": "2020-02-15",
+                "start": "2020-01-01"
+            },
+            "reason": {
+                "display": null,
+                "id": "7422758",
+                "system": null,
+                "type": "MTBDiagnosis"
+            },
+            "recommendationFulfillmentStatus": {
+                "code": "partial",
+                "display": "Partiell",
+                "system": "dnpm-dip/therapy/recommendation-fulfillment-status",
+                "version": null
+            },
+            "recordedOn": "2020-02-15",
+            "status": {
+                "code": "completed",
+                "display": "Vollendet",
+                "system": "dnpm-dip/therapy/status",
+                "version": null
+            },
+            "statusReason": {
+                "code": "payment-ended",
+                "display": "Ende der Kostenübernahme",
+                "system": "dnpm-dip/therapy/status-reason",
+                "version": null
+            },
+            "therapyLine": 1
+        }
+    ],
+    "histologyReports": [],
+    "ihcReports": null,
+    "metadata": {
+        "modelProjectConsent": {
+            "date": null,
+            "provisions": [
+                {
+                    "date": "2020-01-01",
+                    "purpose": "sequencing",
+                    "type": "permit"
+                },
+                {
+                    "date": "2020-01-01",
+                    "purpose": "case-identification",
+                    "type": "permit"
+                },
+                {
+                    "date": "2020-01-01",
+                    "purpose": "reidentification",
+                    "type": "permit"
+                }
+            ],
+            "version": "1"
+        },
+        "researchConsents": null,
+        "transferTAN": null,
+        "type": null
+    },
+    "ngsReports": [],
+    "msiFindings": [],
+    "patient": {
+        "address": {
+            "municipalityCode": null
+        },
+        "age": null,
+        "birthDate": "1950-06-19",
+        "dateOfDeath": null,
+        "gender": {
+            "code": "male",
+            "display": "Männlich",
+            "system": "Gender",
+            "version": null
+        },
+        "healthInsurance": {
+            "reference": {
+                "display": null,
+                "id": "12345687",
+                "system": "https://www.dguv.de/arge-ik",
+                "type": "HealthInsurance"
+            },
+            "type": {
+                "code": "GKV",
+                "display": "gesetzliche Krankenversicherung",
+                "system": "http://fhir.de/CodeSystem/versicherungsart-de-basis",
+                "version": null
+            }
+        },
+        "id": "1321231231",
+        "managingSite": null,
+        "vitalStatus": null
+    },
+    "performanceStatus": [],
+    "priorDiagnosticReports": [],
+    "responses": null,
+    "specimens": [],
+    "systemicTherapies": null
+}
