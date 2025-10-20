@@ -42,3 +42,4 @@ out/
 /deploy/.env
 /dev/gICS*
 /dev/gPAS*
+/.env
