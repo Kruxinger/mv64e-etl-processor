@@ -22,6 +22,21 @@ package dev.dnpm.etl.processor.config
 import dev.dnpm.etl.processor.security.Role
 import org.springframework.boot.context.properties.ConfigurationProperties
 
+@ConfigurationProperties("keycloak")
+data class KeycloakProperties(
+    var gpas: KeycloakClientProperties = KeycloakClientProperties(),
+    var diz: KeycloakClientProperties = KeycloakClientProperties()
+)
+
+data class KeycloakClientProperties(
+    var tokenUrl: String = "",
+    var clientId: String = "",
+    var clientSecret: String = "",
+    var username: String = "",
+    var password: String = ""
+)
+
+
 @ConfigurationProperties(AppConfigProperties.NAME)
 data class AppConfigProperties(
     var transformations: List<TransformationProperties> = listOf(),

@@ -19,7 +19,9 @@
 
 package dev.dnpm.etl.processor.config
 
+import ca.uhn.fhir.context.FhirContext
 import com.fasterxml.jackson.databind.ObjectMapper
+import dev.dnpm.etl.processor.consent.DizConsentService
 import dev.dnpm.etl.processor.consent.MtbFileConsentService
 import dev.dnpm.etl.processor.consent.GicsConsentService
 import dev.dnpm.etl.processor.consent.IConsentService
@@ -31,6 +33,7 @@ import dev.dnpm.etl.processor.pseudonym.PseudonymizeService
 import dev.dnpm.etl.processor.security.TokenRepository
 import dev.dnpm.etl.processor.security.TokenService
 import dev.dnpm.etl.processor.services.ConsentProcessor
+import dev.dnpm.etl.processor.services.KeycloakTokenService
 import dev.dnpm.etl.processor.services.Transformation
 import dev.dnpm.etl.processor.services.TransformationService
 import org.slf4j.LoggerFactory
@@ -75,6 +78,7 @@ class AppConfiguration {
 
     private val logger = LoggerFactory.getLogger(AppConfiguration::class.java)
 
+
     @Bean
     fun restTemplate(): RestTemplate {
         return RestTemplate()
@@ -84,6 +88,7 @@ class AppConfiguration {
     fun appFhirConfig(): AppFhirConfig {
         return AppFhirConfig()
     }
+
 
     @ConditionalOnProperty(value = ["app.pseudonymize.generator"], havingValue = "GPAS")
     @Bean
@@ -261,6 +266,58 @@ class AppConfiguration {
             connectionCheckUpdateProducer
         )
     }
+    // --------------------- DIZ Consent Service ---------------------
+
+    @ConditionalOnProperty(name = ["app.consent.service"], havingValue = "DIZ")
+    @Bean
+    fun dizKeycloakTokenService(
+        restTemplate: RestTemplate,
+        keycloakProperties: KeycloakProperties
+    ): KeycloakTokenService {
+        // DIZ-spezifische Konfiguration aus KeycloakProperties nutzen
+        return KeycloakTokenService(restTemplate, keycloakProperties)
+    }
+
+    @ConditionalOnProperty(name = ["app.consent.service"], havingValue = "DIZ")
+    @Bean
+    fun dizConsentService(
+        restTemplate: RestTemplate,
+        dizKeycloakTokenService: KeycloakTokenService
+    ): IConsentService {
+        return DizConsentService(restTemplate, dizKeycloakTokenService)
+    }
+
+    @ConditionalOnProperty(name = ["app.consent.service"], havingValue = "DIZ")
+    @Bean
+    fun dizConsentProcessor(
+        configProperties: AppConfigProperties,
+        getObjectMapper: ObjectMapper,
+        dizConsentService: IConsentService
+    ): ConsentProcessor {
+        return ConsentProcessor(
+            configProperties,
+            null, // kein GIcsConfigProperties nötig für DIZ
+            getObjectMapper,
+            FhirContext.forR4(),
+            dizConsentService
+        )
+    }
+
+
+
+    @Bean
+    fun keycloakTokenService(
+        restTemplate: RestTemplate,
+        keycloakProperties: KeycloakProperties
+    ): KeycloakTokenService {
+        return KeycloakTokenService(restTemplate, keycloakProperties)
+    }
+
+    @Bean
+    fun gpasSoapClient(keycloakTokenService: KeycloakTokenService): dev.dnpm.etl.processor.pseudonym.GpasSoapClient {
+        return dev.dnpm.etl.processor.pseudonym.GpasSoapClient(keycloakTokenService)
+    }
+
 
     @Bean
     @ConditionalOnMissingBean
@@ -280,11 +337,11 @@ class AppConfiguration {
             }
 
             override fun generateGenomDeTan(id: String): String {
-                // optional: kann auf gleiche Methode zeigen oder erweitert werden
                 return gpasSoapClient.getVorgangsnummerForFallId(id)
             }
         }
     }
+
 
 }
 

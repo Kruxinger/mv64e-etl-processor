@@ -28,7 +28,7 @@ import java.util.*
 @Service
 class ConsentProcessor(
     private val appConfigProperties: AppConfigProperties,
-    private val gIcsConfigProperties: GIcsConfigProperties,
+    private val gIcsConfigProperties: GIcsConfigProperties?,
     private val objectMapper: ObjectMapper,
     private val fhirContext: FhirContext,
     private val consentService: IConsentService
