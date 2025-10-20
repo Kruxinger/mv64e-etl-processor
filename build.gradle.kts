@@ -67,6 +67,8 @@ repositories {
 }
 
 dependencies {
+    implementation("jakarta.xml.soap:jakarta.xml.soap-api:3.0.1")
+    implementation("com.sun.xml.messaging.saaj:saaj-impl:3.0.3")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     implementation("org.springframework.boot:spring-boot-starter-web")

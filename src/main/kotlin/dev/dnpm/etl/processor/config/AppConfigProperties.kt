@@ -162,7 +162,8 @@ data class SecurityConfigProperties(
 
 enum class PseudonymGenerator {
     BUILDIN,
-    GPAS
+    GPAS,
+    GPAS_SOAP
 }
 
 enum class ConsentService {

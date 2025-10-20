@@ -6,7 +6,7 @@ build/
 !**/src/test/**/build/
 
 bindings/ca-certificates/*.pem
-
+ .env
 ### STS ###
 .apt_generated
 .classpath

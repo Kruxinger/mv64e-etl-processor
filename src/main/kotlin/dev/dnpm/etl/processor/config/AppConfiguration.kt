@@ -268,6 +268,24 @@ class AppConfiguration {
         return MtbFileConsentService()
     }
 
+    @ConditionalOnProperty(value = ["app.pseudonymize.generator"], havingValue = "GPAS_SOAP")
+    @Bean
+    fun gpasSoapPseudonymGenerator(
+        gpasSoapClient: dev.dnpm.etl.processor.pseudonym.GpasSoapClient
+    ): Generator {
+        logger.info("Selected 'GPAS SOAP Pseudonym Generator'")
+        return object : Generator {
+            override fun generate(id: String): String {
+                return gpasSoapClient.getVorgangsnummerForFallId(id)
+            }
+
+            override fun generateGenomDeTan(id: String): String {
+                // optional: kann auf gleiche Methode zeigen oder erweitert werden
+                return gpasSoapClient.getVorgangsnummerForFallId(id)
+            }
+        }
+    }
+
 }
 
 class GicsEnabledCondition :
