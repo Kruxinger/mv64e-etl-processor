@@ -24,7 +24,7 @@ public class GpasSoapClient {
     public String getVorgangsnummerForFallId(String fallId) throws Exception {
         disableSslVerification(); // nur für interne Testumgebungen!
 
-        String token = tokenService.getAccessToken();
+        String token = tokenService.getToken("gpas");
 
         SOAPConnectionFactory soapConnectionFactory = SOAPConnectionFactory.newInstance();
         SOAPConnection soapConnection = soapConnectionFactory.createConnection();

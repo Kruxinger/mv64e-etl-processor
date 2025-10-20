@@ -4,6 +4,7 @@ import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
 import dev.dnpm.etl.processor.services.KeycloakTokenService;
 import org.hl7.fhir.r4.model.Bundle;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -16,6 +17,8 @@ public class DizConsentService implements IConsentService {
     private final RestTemplate restTemplate;
     private final KeycloakTokenService tokenService;
     private final FhirContext fhirContext;
+    @Value("${diz-consent.endpoint}")
+    private String dizEndpoint;
 
     public DizConsentService(RestTemplate restTemplate,
                              KeycloakTokenService tokenService) {
@@ -34,10 +37,10 @@ public class DizConsentService implements IConsentService {
     public Bundle getConsent(String patientId, Date requestDate, ConsentDomain consentDomain) {
         try {
             // Keycloak Token holen
-            String token = tokenService.getAccessToken();
+            String token = tokenService.getToken("diz");
 
             // URL zum FHIR Consent Service
-            String url = "https://bc.diz.med.uni-muenchen.de/fhir/Consent?patient=" + patientId;
+            String url = dizEndpoint + patientId;
 
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(token);

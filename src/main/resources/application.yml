@@ -19,19 +19,24 @@ spring:
 
 keycloak:
   gpas:
-    token-url: http://localhost:8082/auth/realms/mv64/protocol/openid-connect/token
-    client-id: soap
-    client-secret: b46TDsluFt9G751pyUKmMQlFhAceRT17
-    username: sys-ccc-ldap
-    password: KL3P7Cf1HmTW9Pk7tZA
+    token-url: ${KEYCLOAK_GPAS_TOKEN_URL}
+    client-id: ${KEYCLOAK_GPAS_CLIENT_ID}
+    client-secret: ${KEYCLOAK_GPAS_CLIENT_SECRET}
+    username: ${KEYCLOAK_GPAS_USERNAME}
+    password: ${KEYCLOAK_GPAS_PASSWORD}
 
   diz:
-    token-url: https://medver-keycloak.srv.med.uni-muenchen.de/auth/realms/broadconsent/protocol/openid-connect/token
-    client-id: fhir
-    client-secret: b46TDsluFt9G751pyUKmMQlFhAceRT17
-    username: sys-ccc-ldap
-    password: KL3P7Cf1HmTW9Pk7tZA
+    token-url: ${KEYCLOAK_DIZ_TOKEN_URL}
+    client-id: ${KEYCLOAK_DIZ_CLIENT_ID}
+    client-secret: ${KEYCLOAK_DIZ_CLIENT_SECRET}
+    username: ${KEYCLOAK_DIZ_USERNAME}
+    password: ${KEYCLOAK_DIZ_PASSWORD}
 
+diz-consent:
+  endpoint: ${DIZ_CONSENT_ENDPOINT}
+
+gpas:
+  wsdl-url: ${GPAS_WSDL_URL}
 
 
 server:

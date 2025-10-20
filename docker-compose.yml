@@ -1,15 +1,4 @@
 services:
-  app:
-    build: .
-    environment:
-      - KEYCLOAK_TOKEN_URL
-      - KEYCLOAK_CLIENT_ID
-      - KEYCLOAK_CLIENT_SECRET
-      - KEYCLOAK_USERNAME
-      - KEYCLOAK_PASSWORD
-      - GPAS_WSDL_URL
-    depends_on:
-      - mariadb
   ## For use with MariaDB
   mariadb:
     image: mariadb:10
