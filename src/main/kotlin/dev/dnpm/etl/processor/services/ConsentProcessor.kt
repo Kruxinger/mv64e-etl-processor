@@ -11,6 +11,8 @@ import dev.dnpm.etl.processor.consent.IConsentService
 import dev.dnpm.etl.processor.consent.MtbFileConsentService
 import dev.dnpm.etl.processor.pseudonym.ensureMetaDataIsInitialized
 import dev.pcvolkmer.mv64e.mtb.*
+import dev.pcvolkmer.mv64e.mtb.ModelProjectConsentPurpose
+import dev.pcvolkmer.mv64e.mtb.ConsentProvision
 import org.apache.commons.lang3.NotImplementedException
 import org.hl7.fhir.r4.model.*
 import org.hl7.fhir.r4.model.Bundle.BundleEntryComponent
@@ -24,6 +26,7 @@ import java.io.IOException
 import java.time.Clock
 import java.time.Instant
 import java.util.*
+
 
 @Service
 class ConsentProcessor(
@@ -56,52 +59,52 @@ class ConsentProcessor(
 
         mtbFile.ensureMetaDataIsInitialized()
 
-        val personIdentifierValue = mtbFile.patient.id
+        var personIdentifierValue = mtbFile.patient.id
+        if ("###" in personIdentifierValue) {
+            personIdentifierValue = personIdentifierValue.split("###")[0]
+        }
+
         val requestDate = Date.from(Instant.now(Clock.systemUTC()))
-
-        // 1. Broad consent Entry exists?
-        // 1.1. -> yes and research consent is given -> send mtb file
-        // 1.2. -> no -> return status error - consent has not been asked
-        // 2. ->  Broad consent found but rejected -> is GenomDe consent provision 'sequencing' given?
-        // 2.1 -> yes -> send mtb file
-        // 2.2 -> no ->  warn/info no consent given
-
         /*
-         * broad consent
+        1. Broad consent abrufen
+        2. Broad consent existiert?
+        2.1. -> nein -> return false
+        3. MV consent existiert?
+        3.1. -> nein -> return false
+        4. MV Consent.sequencing = permit?
+        4.1. -> nein -> return false
+
          */
+        // 1. Broad consent abrufen
         val broadConsent = consentService.getConsent(
             personIdentifierValue, requestDate, ConsentDomain.BROAD_CONSENT
         )
+        //2. Broad consent existiert?
         val broadConsentHasBeenAsked = broadConsent.entry.isNotEmpty()
-
-        // fast exit - if patient has not been asked, we can skip and exit
-        if (!broadConsentHasBeenAsked) return false
-
-        val genomeDeConsent = consentService.getConsent(
-            personIdentifierValue, requestDate, ConsentDomain.MODELLVORHABEN_64E
-        )
-
-        addGenomeDbProvisions(mtbFile, genomeDeConsent)
-
-        if (genomeDeConsent.entry.isNotEmpty()) setGenomDeSubmissionType(mtbFile)
-
-        embedBroadConsentResources(mtbFile, broadConsent)
-
-        val broadConsentStatus = getProvisionTypeByPolicyCode(
-            broadConsent, requestDate, ConsentDomain.BROAD_CONSENT
-        )
-
-        val genomDeSequencingStatus = getProvisionTypeByPolicyCode(
-            genomeDeConsent, requestDate, ConsentDomain.MODELLVORHABEN_64E
-        )
-
-        if (Consent.ConsentProvisionType.NULL == broadConsentStatus) {
-            // bc not asked
+        // 2.1. -> nein -> return false
+        if (!broadConsentHasBeenAsked) {
+            logger.info("broad consent is empty")
             return false
         }
-        if (Consent.ConsentProvisionType.PERMIT == broadConsentStatus || Consent.ConsentProvisionType.PERMIT == genomDeSequencingStatus) return true
+        embedBroadConsentResources(mtbFile, broadConsent)
 
-        return false
+        // 3. MV consent existiert?
+        if (mtbFile.metadata.modelProjectConsent == null){
+            logger.info("MV consent is null")
+            return false;
+        }
+        // 4. MV Consent.sequencing = permit?
+        val sequencingPermitted = mtbFile.metadata.modelProjectConsent.provisions.any {
+            it.purpose == ModelProjectConsentPurpose.CASE_IDENTIFICATION &&
+                    it.type == ConsentProvision.PERMIT
+        }
+
+        // 4.1. -> nein -> return false
+        if (!sequencingPermitted){
+            logger.info("MV consent(sequencing) == deny")
+            return false;
+        }
+        return true
     }
 
     fun embedBroadConsentResources(mtbFile: Mtb, broadConsent: Bundle) {
@@ -172,7 +175,7 @@ class ConsentProcessor(
 
             if (mtbFile.metadata.modelProjectConsent.provisions.isNotEmpty()) {
                 mtbFile.metadata.modelProjectConsent.version =
-                    gIcsConfigProperties.genomeDeConsentVersion
+                    gIcsConfigProperties?.genomeDeConsentVersion
             }
         }
     }
@@ -200,11 +203,11 @@ class ConsentProcessor(
         val code: String?
         val system: String?
         if (ConsentDomain.BROAD_CONSENT == consentDomain) {
-            code = gIcsConfigProperties.broadConsentPolicyCode
-            system = gIcsConfigProperties.broadConsentPolicySystem
+            code = gIcsConfigProperties?.broadConsentPolicyCode
+            system = gIcsConfigProperties?.broadConsentPolicySystem
         } else if (ConsentDomain.MODELLVORHABEN_64E == consentDomain) {
-            code = gIcsConfigProperties.genomeDePolicyCode
-            system = gIcsConfigProperties.genomeDePolicySystem
+            code = gIcsConfigProperties?.genomeDePolicyCode
+            system = gIcsConfigProperties?.genomeDePolicySystem
         } else {
             throw NotImplementedException("unknown consent domain " + consentDomain.name)
         }
