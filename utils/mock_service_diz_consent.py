@@ -1,6 +1,7 @@
 # mock_consent_service.py
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+import uvicorn
 
 app = FastAPI()
 
@@ -66,3 +67,10 @@ async def get_consent(request: Request):
     }
 
     return JSONResponse(content=bundle)
+def main():
+    """Starte den Mock-Consent-Service auf Port 8091"""
+    uvicorn.run("mock_service_diz_consent:app", host="0.0.0.0", port=8091, reload=False)
+
+
+if __name__ == "__main__":
+    main()
