@@ -70,7 +70,8 @@ import kotlin.time.toJavaDuration
         GPasConfigProperties::class,
         ConsentConfigProperties::class,
         GIcsConfigProperties::class,
-        RestTargetProperties::class
+        RestTargetProperties::class,
+        KeycloakProperties::class
     ]
 )
 @EnableScheduling
@@ -333,10 +334,16 @@ class AppConfiguration {
         logger.info("Selected 'GPAS SOAP Pseudonym Generator'")
         return object : Generator {
             override fun generate(id: String): String {
+                if ("###" in id) {
+                    return gpasSoapClient.getVorgangsnummerForFallId(id.split("###")[0])
+                }
                 return gpasSoapClient.getVorgangsnummerForFallId(id)
             }
 
             override fun generateGenomDeTan(id: String): String {
+                if ("###" in id) {
+                    return gpasSoapClient.getVorgangsnummerForFallId(id.split("###")[0])
+                }
                 return gpasSoapClient.getVorgangsnummerForFallId(id)
             }
         }

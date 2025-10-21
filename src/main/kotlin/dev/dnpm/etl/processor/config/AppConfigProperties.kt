@@ -22,11 +22,15 @@ package dev.dnpm.etl.processor.config
 import dev.dnpm.etl.processor.security.Role
 import org.springframework.boot.context.properties.ConfigurationProperties
 
-@ConfigurationProperties("keycloak")
+@ConfigurationProperties(KeycloakProperties.NAME)
 data class KeycloakProperties(
     var gpas: KeycloakClientProperties = KeycloakClientProperties(),
     var diz: KeycloakClientProperties = KeycloakClientProperties()
-)
+){
+    companion object {
+        const val NAME = "keycloak"
+    }
+}
 
 data class KeycloakClientProperties(
     var tokenUrl: String = "",
