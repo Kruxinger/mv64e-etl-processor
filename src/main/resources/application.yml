@@ -43,6 +43,10 @@ app:
   rest:
     uri: ${DIP_ENDPOINT}
   debug: ${DEBUG}
+  consentdb:
+    url: ${DB_URL}
+    user: ${DB_USER}
+    password: ${DB_PASSWORD}
 
 server:
   forward-headers-strategy: framework

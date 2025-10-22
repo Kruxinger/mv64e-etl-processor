@@ -27,6 +27,7 @@ import dev.dnpm.etl.processor.monitoring.Report
 import dev.dnpm.etl.processor.monitoring.Request
 import dev.dnpm.etl.processor.monitoring.RequestStatus
 import dev.dnpm.etl.processor.monitoring.RequestType
+import dev.dnpm.etl.processor.output.ConsentDbWriter
 import dev.dnpm.etl.processor.output.DeleteRequest
 import dev.dnpm.etl.processor.output.DnpmV2MtbFileRequest
 import dev.dnpm.etl.processor.output.MtbFileRequest
@@ -45,6 +46,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import java.time.Instant
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import java.util.*
 
 @Service
@@ -56,18 +58,36 @@ class RequestProcessor(
     private val objectMapper: ObjectMapper,
     private val applicationEventPublisher: ApplicationEventPublisher,
     private val appConfigProperties: AppConfigProperties,
-    private val consentProcessor: ConsentProcessor?
+    private val consentProcessor: ConsentProcessor?,
+    private val consentDbWriter: ConsentDbWriter
 ) {
 
     private var logger: Logger = LoggerFactory.getLogger("RequestProcessor")
 
     fun processMtbFile(mtbFile: Mtb) {
+        val fullId = mtbFile.patient.id
         processMtbFile(mtbFile, randomRequestId())
     }
 
+    fun extractIds(mtbFile: Mtb): Pair<String, Long> {
+        val fullId = mtbFile.patient.id  // Java-Feld getter wird automatisch aufgerufen
+        val parts = fullId.split("###")
+
+        val patientId = parts.getOrNull(0) ?: throw IllegalArgumentException("PatientenID fehlt")
+        val fallId = parts.getOrNull(1)?.toLongOrNull() ?: throw IllegalArgumentException("FallID fehlt oder ungültig")
+
+        return patientId to fallId
+    }
+    fun consentToJson(mtbFile: Mtb): String {
+        val objectMapper = ObjectMapper().registerKotlinModule()
+        val researchConsents: List<Map<String, Any>> = mtbFile.metadata.researchConsents!!
+        return objectMapper.writeValueAsString(researchConsents)
+    }
 
     fun processMtbFile(mtbFile: Mtb, requestId: RequestId) {
+        val (patientId, fallId) = extractIds(mtbFile)
         val pid = PatientId(extractPatientIdentifier(mtbFile))
+
 
         val isConsentOk =
             consentProcessor != null && consentProcessor.consentGatedCheckAndTryEmbedding(mtbFile) || consentProcessor == null
@@ -78,6 +98,8 @@ class RequestProcessor(
             mtbFile pseudonymizeWith pseudonymizeService
             mtbFile anonymizeContentWith pseudonymizeService
             val request = DnpmV2MtbFileRequest(requestId, transformationService.transform(mtbFile))
+
+            consentDbWriter.writeConsent(fallId, patientId, consentToJson(mtbFile))
             saveAndSend(request, pid)
         } else {
             logger.warn("consent check failed file will not be processed further!")

@@ -30,3 +30,6 @@ wobei ``gpas-ca.crt`` das Zertifikat für den gPAS-Service ist. Ggf. müssen auc
 ``changeit`` ist lediglich das default Passwort des Truststores
 
 
+mtb.getPatient().setId(mtb.getPatient().getId()+"###"+caseId
+
+
