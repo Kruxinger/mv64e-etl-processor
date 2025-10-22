@@ -41,7 +41,7 @@ app:
   pseudonymize:
     generator: GPAS_SOAP
   rest:
-    uri: http://localhost:8092/receive
+    uri: ${DIP_ENDPOINT}
 
 server:
   forward-headers-strategy: framework
