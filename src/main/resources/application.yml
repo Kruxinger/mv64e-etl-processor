@@ -39,9 +39,10 @@ gpas:
   wsdl-url: ${GPAS_WSDL_URL}
 app:
   pseudonymize:
-    generator: GPAS_SOAP
+    generator: ${PSEUDONYMIZE_METHOD}
   rest:
     uri: ${DIP_ENDPOINT}
+  debug: ${DEBUG}
 
 server:
   forward-headers-strategy: framework

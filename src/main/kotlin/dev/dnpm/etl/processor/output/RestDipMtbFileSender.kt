@@ -22,6 +22,7 @@ package dev.dnpm.etl.processor.output
 import dev.dnpm.etl.processor.PatientPseudonym
 import dev.dnpm.etl.processor.config.RestTargetProperties
 import dev.dnpm.etl.processor.monitoring.ReportService
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestTemplate
@@ -29,19 +30,32 @@ import org.springframework.web.util.UriComponentsBuilder
 
 @Component
 class RestDipMtbFileSender(
+
     restTemplate: RestTemplate,
     private val restTargetProperties: RestTargetProperties,
     retryTemplate: RetryTemplate,
     reportService: ReportService
 ) : RestMtbFileSender(restTemplate, restTargetProperties, retryTemplate, reportService) {
+    @Value("\${app.debug}")
+    val debug: Boolean = false
 
     override fun sendUrl(): String {
-        return UriComponentsBuilder
-            .fromUriString(restTargetProperties.uri.toString())
-            .pathSegment("mtb")
-            .pathSegment("etl")
-            .pathSegment("patient-record")
-            .toUriString()
+
+        if (!debug) {
+            return UriComponentsBuilder
+                .fromUriString(restTargetProperties.uri.toString())
+                .pathSegment("mtb")
+                .pathSegment("etl")
+                .pathSegment("patient-record")
+                .toUriString()
+        }else{
+            return UriComponentsBuilder
+                .fromUriString(restTargetProperties.uri.toString())
+                .pathSegment("mtb")
+                .pathSegment("etl")
+                .pathSegment("patient-record:validate")
+                .toUriString()
+        }
     }
 
     override fun deleteUrl(patientId: PatientPseudonym): String {

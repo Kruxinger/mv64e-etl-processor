@@ -12,7 +12,7 @@ os.makedirs(SAVE_DIR, exist_ok=True)
 
 
 @app.post(
-    "/receive/mtb/etl/patient-record",
+    "/receive/mtb/etl/patient-record:validate",
     response_class=JSONResponse,
 )
 async def receive_file(request: Request):
