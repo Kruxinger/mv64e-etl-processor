@@ -37,7 +37,11 @@ diz-consent:
 
 gpas:
   wsdl-url: ${GPAS_WSDL_URL}
-
+app:
+  pseudonymize:
+    generator: GPAS_SOAP
+  rest:
+    uri: http://localhost:8092/receive
 
 server:
   forward-headers-strategy: framework

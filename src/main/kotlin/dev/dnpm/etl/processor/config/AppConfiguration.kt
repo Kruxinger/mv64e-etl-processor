@@ -335,14 +335,14 @@ class AppConfiguration {
         return object : Generator {
             override fun generate(id: String): String {
                 if ("###" in id) {
-                    return gpasSoapClient.getVorgangsnummerForFallId(id.split("###")[0])
+                    return gpasSoapClient.getArbeitsnummerForFallId(id.split("###")[1])
                 }
-                return gpasSoapClient.getVorgangsnummerForFallId(id)
+                return gpasSoapClient.getArbeitsnummerForFallId(id)
             }
 
             override fun generateGenomDeTan(id: String): String {
                 if ("###" in id) {
-                    return gpasSoapClient.getVorgangsnummerForFallId(id.split("###")[0])
+                    return gpasSoapClient.getVorgangsnummerForFallId(id.split("###")[1])
                 }
                 return gpasSoapClient.getVorgangsnummerForFallId(id)
             }

@@ -56,7 +56,7 @@ data class AppConfigProperties(
 @ConfigurationProperties(PseudonymizeConfigProperties.NAME)
 data class PseudonymizeConfigProperties(
     var generator: PseudonymGenerator = PseudonymGenerator.BUILDIN,
-    val prefix: String = "UNKNOWN",
+    val prefix: String = "ONKOSTAR",
 ) {
     companion object {
         const val NAME = "app.pseudonymize"
