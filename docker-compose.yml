@@ -1,5 +1,23 @@
+version: "3.9"
 services:
-  ## For use with MariaDB
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        http_proxy: "http://mitproxy0.srv.med.uni-muenchen.de:8080"
+        https_proxy: "http://mitproxy0.srv.med.uni-muenchen.de:8080"
+        no_proxy: "localhost,127.0.0.1,.srv.med.uni-muenchen.de"
+    environment:
+      - http_proxy=http://mitproxy0.srv.med.uni-muenchen.de:8080
+      - https_proxy=http://mitproxy0.srv.med.uni-muenchen.de:8080
+      - no_proxy=localhost,127.0.0.1,.srv.med.uni-muenchen.de
+      - DIP_ENDPOINT=http://srv-intern-xyz:8080/receive/mtb/etl/patient-record
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mariadb
+
   mariadb:
     image: mariadb:10
     ports:
@@ -9,4 +27,3 @@ services:
       MARIADB_USER: dev
       MARIADB_PASSWORD: dev
       MARIADB_ROOT_PASSWORD: dev
-
