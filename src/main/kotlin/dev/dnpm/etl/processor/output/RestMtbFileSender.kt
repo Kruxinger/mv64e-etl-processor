@@ -107,10 +107,15 @@ abstract class RestMtbFileSender(
         val username = restTargetProperties.username
         val password = restTargetProperties.password
         val headers = HttpHeaders()
-        headers.contentType = when (request) {
-            is DnpmV2MtbFileRequest -> CustomMediaType.APPLICATION_VND_DNPM_V2_MTB_JSON
-            else -> MediaType.APPLICATION_JSON
+        val utf8MediaType = when (request) {
+            is DnpmV2MtbFileRequest ->
+                MediaType("application", "vnd.dnpm.v2.mtb+json", Charsets.UTF_8)
+            else ->
+                MediaType("application", "json", Charsets.UTF_8)
         }
+
+        headers.contentType = MediaType.APPLICATION_JSON
+        headers.accept = listOf(MediaType.APPLICATION_JSON)
 
         if (username.isNullOrBlank() || password.isNullOrBlank()) {
             return headers

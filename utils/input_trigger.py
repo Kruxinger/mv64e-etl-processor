@@ -12,7 +12,7 @@ def get_session():
     return session
 
 
-with open("valid_input.json", "r") as f:
+with open("valid_input.json", "r", encoding="utf-8") as f:
     payload = json.load(f)
 
 session = get_session()

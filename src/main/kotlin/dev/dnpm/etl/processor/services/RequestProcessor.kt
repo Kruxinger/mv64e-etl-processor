@@ -73,7 +73,7 @@ class RequestProcessor(
             consentProcessor != null && consentProcessor.consentGatedCheckAndTryEmbedding(mtbFile) || consentProcessor == null
         if (isConsentOk) {
             if (isGenomDeConsented(mtbFile)) {
-                mtbFile addGenomDeTan pseudonymizeService
+                mtbFile.addGenomDeTan(pseudonymizeService)
             }
             mtbFile pseudonymizeWith pseudonymizeService
             mtbFile anonymizeContentWith pseudonymizeService
