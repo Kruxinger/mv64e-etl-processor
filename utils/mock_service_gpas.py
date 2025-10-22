@@ -10,6 +10,7 @@ def random_string(length=20):
 @app.route("/gpas/gpasService", methods=["POST"])
 def gpas_service():
     xml = request.data.decode("utf-8")
+    print(xml)
 
     if "getOrCreatePseudonymFor" in xml:
         value = random_string()
@@ -21,6 +22,7 @@ def gpas_service():
       <psn>{value}</psn>
    </soapenv:Body>
 </soapenv:Envelope>"""
+        print(f"value: {value}")
         return Response(response_xml, mimetype='text/xml')
 
     elif "createPseudonymFor" in xml:
@@ -33,6 +35,7 @@ def gpas_service():
       <psn>{value}</psn>
    </soapenv:Body>
 </soapenv:Envelope>"""
+        print(f"value: {value}")
         return Response(response_xml, mimetype='text/xml')
 
     else:
