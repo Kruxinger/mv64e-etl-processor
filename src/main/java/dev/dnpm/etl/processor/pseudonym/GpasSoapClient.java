@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import javax.net.ssl.*;
 import java.net.URL;
 import java.security.cert.X509Certificate;
+import java.util.Iterator;
 
 @Service
 public class GpasSoapClient {
@@ -21,7 +22,32 @@ public class GpasSoapClient {
         this.tokenService = tokenService;
     }
 
+    public String getArbeitsnummerForFallId(String fallId) throws Exception {
+        if(fallId.contains("###")){
+            fallId = fallId.split("###")[1];
+        }
+        disableSslVerification(); // nur für interne Testumgebungen!
+
+        String token = tokenService.getToken("gpas");
+
+        SOAPConnectionFactory soapConnectionFactory = SOAPConnectionFactory.newInstance();
+        SOAPConnection soapConnection = soapConnectionFactory.createConnection();
+
+        URL endpoint = new URL(wsdlUrl); // z.B. "http://localhost:8082/gpas/gpasService"
+
+        // 1. Aufruf: getOrCreatePseudonymFor -> Arbeitsnummer
+        SOAPMessage request1 = createRequest(fallId, "arbeitsnummer", "getOrCreatePseudonymFor", token);
+        SOAPMessage response1 = soapConnection.call(request1, endpoint);
+        String arbeitsnummer = extractPsnResult(response1);
+
+        soapConnection.close();
+        return arbeitsnummer;
+    }
+
     public String getVorgangsnummerForFallId(String fallId) throws Exception {
+        if(fallId.contains("###")){
+            fallId = fallId.split("###")[1];
+        }
         disableSslVerification(); // nur für interne Testumgebungen!
 
         String token = tokenService.getToken("gpas");
@@ -67,8 +93,15 @@ public class GpasSoapClient {
 
     private String extractPsnResult(SOAPMessage response) throws Exception {
         SOAPBody body = response.getSOAPBody();
-        // extrahiert den Inhalt des ersten Kind-Elements im psn-Namespace
-        return body.getFirstChild().getTextContent().trim();
+        // Suche nach dem ersten Element im Body, ignoriere Text-Knoten
+        Iterator<?> it = body.getChildElements();
+        while (it.hasNext()) {
+            Object node = it.next();
+            if (node instanceof SOAPElement) {
+                return ((SOAPElement) node).getValue().trim();
+            }
+        }
+        throw new RuntimeException("No SOAPElement found in body");
     }
 
     /** deaktiviert Zertifikatsprüfung für interne Testumgebung **/
