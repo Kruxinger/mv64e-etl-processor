@@ -36,35 +36,16 @@ class RestDipMtbFileSender(
     retryTemplate: RetryTemplate,
     reportService: ReportService
 ) : RestMtbFileSender(restTemplate, restTargetProperties, retryTemplate, reportService) {
-    @Value("\${app.debug}")
-    val debug: Boolean = false
 
     override fun sendUrl(): String {
-
-        if (!debug) {
-            return UriComponentsBuilder
-                .fromUriString(restTargetProperties.uri.toString())
-                .pathSegment("mtb")
-                .pathSegment("etl")
-                .pathSegment("patient-record")
-                .toUriString()
-        }else{
-            return UriComponentsBuilder
-                .fromUriString(restTargetProperties.uri.toString())
-                .pathSegment("mtb")
-                .pathSegment("etl")
-                .pathSegment("patient-record:validate")
-                .toUriString()
-        }
+        return UriComponentsBuilder
+            .fromUriString(restTargetProperties.uri.toString())
+            .toUriString()
     }
 
     override fun deleteUrl(patientId: PatientPseudonym): String {
         return UriComponentsBuilder
             .fromUriString(restTargetProperties.uri.toString())
-            .pathSegment("mtb")
-            .pathSegment("etl")
-            .pathSegment("patient")
-            .pathSegment(patientId.value)
             .toUriString()
     }
 
