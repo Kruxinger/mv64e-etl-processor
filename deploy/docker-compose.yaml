@@ -5,14 +5,13 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        http_proxy: "http://mitproxy0.srv.med.uni-muenchen.de:8080"
-        https_proxy: "http://mitproxy0.srv.med.uni-muenchen.de:8080"
-        no_proxy: "localhost,127.0.0.1,.srv.med.uni-muenchen.de"
+        http_proxy: ""
+        https_proxy: ""
+        no_proxy: ""
     environment:
-      - http_proxy=http://mitproxy0.srv.med.uni-muenchen.de:8080
-      - https_proxy=http://mitproxy0.srv.med.uni-muenchen.de:8080
-      - no_proxy=localhost,127.0.0.1,.srv.med.uni-muenchen.de
-      - DIP_ENDPOINT=http://srv-intern-xyz:8080/receive/mtb/etl/patient-record
+      - http_proxy=
+      - https_proxy=
+      - no_proxy=
     ports:
       - "8080:8080"
     depends_on:
