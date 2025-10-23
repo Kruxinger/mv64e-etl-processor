@@ -1,0 +1,21 @@
+# Dockerfile.proxy
+FROM python:3.11-slim
+
+ARG http_proxy
+ARG https_proxy
+
+# Arbeitsverzeichnis
+WORKDIR /app
+
+# Abhängigkeiten kopieren
+COPY requirements.txt .
+
+# Installiere Pakete unter Proxy
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Code kopieren
+COPY mock_services_combined.py .
+
+EXPOSE 8090
+
+CMD ["python", "mock_services_combined.py"]
