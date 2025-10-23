@@ -5,11 +5,18 @@ services:
       context: .
       dockerfile: Dockerfile        # oder Dockerfile.proxy
       args:
-        http_proxy: "<proxy_address>"
-        https_proxy: "<proxy_address>"
+        http_proxy: "<proxy>"
+        https_proxy: "<proxy>"
     container_name: mockserver
     ports:
       - "8090:8090"
+    volumes:
+      - ./received_files:/app/received_files
     environment:
-      - http_proxy=<proxy_address>
-      - https_proxy=<proxy_address>
+      - http_proxy=<proxy>
+      - https_proxy=<proxy>
+    networks:
+      - etl-net
+networks:
+  etl-net:
+    name: etl-net

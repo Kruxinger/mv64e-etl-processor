@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.net.ssl.*;
+import java.io.ByteArrayOutputStream;
 import java.net.URL;
 import java.security.cert.X509Certificate;
 import java.util.Iterator;
@@ -90,8 +91,19 @@ public class GpasSoapClient {
         soapMessage.saveChanges();
         return soapMessage;
     }
+    private void logSoapMessage(SOAPMessage message) {
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            message.writeTo(out);
+            String soapString = out.toString("UTF-8");
+            System.out.println("SOAP Response:\n" + soapString);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
     private String extractPsnResult(SOAPMessage response) throws Exception {
+        logSoapMessage(response);
         SOAPBody body = response.getSOAPBody();
         // Suche nach dem ersten Element im Body, ignoriere Text-Knoten
         Iterator<?> it = body.getChildElements();

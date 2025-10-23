@@ -95,7 +95,7 @@ class ConsentProcessor(
         }
         // 4. MV Consent.sequencing = permit?
         val sequencingPermitted = mtbFile.metadata.modelProjectConsent.provisions.any {
-            it.purpose == ModelProjectConsentPurpose.CASE_IDENTIFICATION &&
+            it.purpose == ModelProjectConsentPurpose.SEQUENCING &&
                     it.type == ConsentProvision.PERMIT
         }
 

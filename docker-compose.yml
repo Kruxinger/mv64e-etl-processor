@@ -5,24 +5,45 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        http_proxy:
-        https_proxy:
-        no_proxy:
+        http_proxy: "<proxy>"
+        https_proxy: "<proxy>"
+        no_proxy: "localhost,127.0.0.1,..."
     environment:
-      - http_proxy=
-      - https_proxy=
-      - no_proxy=
+      # Proxy für den laufenden Container
+      - HTTP_PROXY=<proxy>
+      - HTTPS_PROXY=<proxy>
+      - NO_PROXY=localhost,127.0.0.1,...
+
+      # Datenbankverbindung
+      - SPRING_DATASOURCE_URL=jdbc:mariadb://mariadb:3306/dev
+      - SPRING_DATASOURCE_USERNAME=dev
+      - SPRING_DATASOURCE_PASSWORD=dev
+
     ports:
       - "8080:8080"
     depends_on:
       - mariadb
+    env_file:
+      - .env
+    networks:
+      - etl-net
 
   mariadb:
     image: mariadb:10
-    ports:
-      - "13306:3306"
     environment:
       MARIADB_DATABASE: dev
       MARIADB_USER: dev
       MARIADB_PASSWORD: dev
       MARIADB_ROOT_PASSWORD: dev
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    networks:
+      - etl-net
+
+volumes:
+  mariadb-data:
+
+
+networks:
+  etl-net:
+    name: etl-net

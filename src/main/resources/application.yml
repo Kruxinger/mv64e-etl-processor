@@ -47,6 +47,8 @@ app:
     url: ${DB_URL}
     user: ${DB_USER}
     password: ${DB_PASSWORD}
+  consent:
+    service: DIZ
 
 server:
   forward-headers-strategy: framework

@@ -25,7 +25,7 @@ Implementierung für das CCC der LMU München.
 ## Zertifikate und Proxy
 Die Zertifikate kann man sich z.B. via Chrome von den entsprechenden Seiten holen und einfach 
 einbinden über
-``keytool -importcert -trustcacerts -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit -alias gpas-ca -file gpas-ca.crt``
+``keytool -importcert -trustcacerts -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit -alias consent -file consent.crt``
 wobei ``gpas-ca.crt`` das Zertifikat für den gPAS-Service ist. Ggf. müssen auch noch Keycloak- und Consentservicezertifikate hinzugefügt werden  
 ``changeit`` ist lediglich das default Passwort des Truststores
 

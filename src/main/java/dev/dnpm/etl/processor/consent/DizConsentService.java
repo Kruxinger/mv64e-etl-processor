@@ -11,7 +11,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.Date;
 
-@Service
+
 public class DizConsentService implements IConsentService {
 
     private final RestTemplate restTemplate;
