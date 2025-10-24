@@ -20,6 +20,7 @@
 package dev.dnpm.etl.processor.services
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import dev.dnpm.etl.processor.*
 import dev.dnpm.etl.processor.config.AppConfigProperties
 import dev.dnpm.etl.processor.consent.TtpConsentStatus
@@ -27,11 +28,6 @@ import dev.dnpm.etl.processor.monitoring.Report
 import dev.dnpm.etl.processor.monitoring.Request
 import dev.dnpm.etl.processor.monitoring.RequestStatus
 import dev.dnpm.etl.processor.monitoring.RequestType
-import dev.dnpm.etl.processor.output.ConsentDbWriter
-import dev.dnpm.etl.processor.output.DeleteRequest
-import dev.dnpm.etl.processor.output.DnpmV2MtbFileRequest
-import dev.dnpm.etl.processor.output.MtbFileRequest
-import dev.dnpm.etl.processor.output.MtbFileSender
 import dev.dnpm.etl.processor.pseudonym.PseudonymizeService
 import dev.dnpm.etl.processor.pseudonym.addGenomDeTan
 import dev.dnpm.etl.processor.pseudonym.anonymizeContentWith
@@ -47,6 +43,7 @@ import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import java.time.Instant
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import dev.dnpm.etl.processor.output.*
 import java.util.*
 
 @Service
@@ -59,6 +56,7 @@ class RequestProcessor(
     private val applicationEventPublisher: ApplicationEventPublisher,
     private val appConfigProperties: AppConfigProperties,
     private val consentProcessor: ConsentProcessor?,
+    private val reqRespDbWriter: ReqRespDbWriter,
     private val consentDbWriter: ConsentDbWriter
 ) {
 
@@ -140,6 +138,13 @@ class RequestProcessor(
         }
 
         val responseStatus = sender.send(request)
+        // --- Hier: Request/Response loggen ---
+        reqRespDbWriter.writeReqResp(
+            patId = pid.value,  // oder wie du patId bekommst
+            caseId = pid.value,
+            requestJson = jacksonObjectMapper().writeValueAsString(request),
+            responseJson = jacksonObjectMapper().writeValueAsString(responseStatus)
+        )
 
         applicationEventPublisher.publishEvent(
             ResponseEvent(
