@@ -103,18 +103,28 @@ public class GpasSoapClient {
     }
 
     private String extractPsnResult(SOAPMessage response) throws Exception {
-        logSoapMessage(response);
         SOAPBody body = response.getSOAPBody();
-        // Suche nach dem ersten Element im Body, ignoriere Text-Knoten
         Iterator<?> it = body.getChildElements();
         while (it.hasNext()) {
             Object node = it.next();
             if (node instanceof SOAPElement) {
-                return ((SOAPElement) node).getValue().trim();
+                SOAPElement element = (SOAPElement) node;
+                // Gehe tiefer ins getOrCreatePseudonymForResponse-Element
+                Iterator<?> innerIt = element.getChildElements();
+                while (innerIt.hasNext()) {
+                    Object innerNode = innerIt.next();
+                    if (innerNode instanceof SOAPElement) {
+                        SOAPElement psnElement = (SOAPElement) innerNode;
+                        if ("psn".equals(psnElement.getLocalName())) {
+                            return psnElement.getValue().trim();
+                        }
+                    }
+                }
             }
         }
-        throw new RuntimeException("No SOAPElement found in body");
+        throw new RuntimeException("No <psn> element found in body");
     }
+
 
     /** deaktiviert Zertifikatsprüfung für interne Testumgebung **/
     private static void disableSslVerification() throws Exception {
