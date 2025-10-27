@@ -140,8 +140,8 @@ class RequestProcessor(
         val responseStatus = sender.send(request)
         // --- Hier: Request/Response loggen ---
         reqRespDbWriter.writeReqResp(
-            patId = pid.value,  // oder wie du patId bekommst
-            caseId = pid.value,
+            patId = pid.value.split("###")[0],  // oder wie du patId bekommst
+            caseId = pid.value.split("###")[1],
             requestJson = jacksonObjectMapper().writeValueAsString(request),
             responseJson = jacksonObjectMapper().writeValueAsString(responseStatus)
         )
