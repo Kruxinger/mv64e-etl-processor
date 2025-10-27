@@ -82,6 +82,14 @@ class RequestProcessor(
         return objectMapper.writeValueAsString(researchConsents)
     }
 
+    fun mvConsentToJson(mtbFile: Mtb): String {
+        val objectMapper = ObjectMapper().registerKotlinModule()
+        val mvConsent = mtbFile.metadata.modelProjectConsent!!
+        return objectMapper.writeValueAsString(mvConsent)
+    }
+
+
+
     fun processMtbFile(mtbFile: Mtb, requestId: RequestId) {
         val (patientId, fallId) = extractIds(mtbFile)
         val pid = PatientId(extractPatientIdentifier(mtbFile))
@@ -97,7 +105,7 @@ class RequestProcessor(
             mtbFile anonymizeContentWith pseudonymizeService
             val request = DnpmV2MtbFileRequest(requestId, transformationService.transform(mtbFile))
 
-            consentDbWriter.writeConsent(fallId, patientId, consentToJson(mtbFile))
+            consentDbWriter.writeConsent(fallId, patientId, consentToJson(mtbFile), mvConsentToJson(mtbFile))
             saveAndSend(request, pid)
         } else {
             logger.warn("consent check failed file will not be processed further!")
