@@ -1,6 +1,8 @@
 package dev.dnpm.etl.processor.config
 
 import ca.uhn.fhir.context.FhirContext
+import com.fasterxml.jackson.annotation.JsonSetter
+import com.fasterxml.jackson.annotation.Nulls
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
@@ -24,11 +26,18 @@ class JacksonConfig {
             .registerModule(FhirResourceModule())
             .registerModule(JavaTimeModule())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-            // ⚡ Tolerant konfigurieren:
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-            .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)
-            .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE, true)
-            .configure(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT, true)
-            .configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true)
+
+            // ⚡ Lockere Deserialisierung:
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)          // ignoriert neue oder optionale Felder
+            .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_AS_NULL, true)    // unbekannte Enums => null
+            .configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE, true) // unbekannte Enums => Defaultwert
+            .configure(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT, true)  // leere Strings => null
+            .configure(DeserializationFeature.ACCEPT_SINGLE_VALUE_AS_ARRAY, true)        // einzelne Werte in Listen zulassen
+            .configure(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES, false)        // null für Int/Boolean/Double erlaubt
+            .configure(DeserializationFeature.FAIL_ON_INVALID_SUBTYPE, false)            // falscher Subtyp => ignorieren
+            .configure(DeserializationFeature.FAIL_ON_NUMBERS_FOR_ENUMS, false)          // Zahl für Enum => ignorieren
+
+            // Optional: fehlende Listen/Maps automatisch als leer behandeln
+            .setDefaultSetterInfo(JsonSetter.Value.forValueNulls(Nulls.AS_EMPTY))
     }
 }
