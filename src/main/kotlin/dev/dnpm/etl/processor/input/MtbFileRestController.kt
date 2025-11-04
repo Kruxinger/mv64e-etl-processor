@@ -43,8 +43,20 @@ class MtbFileRestController(
         return ResponseEntity.ok("Test")
     }
 
-    @PostMapping(consumes = [MediaType.APPLICATION_JSON_VALUE, CustomMediaType.APPLICATION_VND_DNPM_V2_MTB_JSON_VALUE])
-    fun mtbFile(@RequestBody mtbFile: Mtb): ResponseEntity<Unit> {
+    @PostMapping(
+        consumes = [MediaType.APPLICATION_JSON_VALUE, CustomMediaType.APPLICATION_VND_DNPM_V2_MTB_JSON_VALUE]
+    )
+    fun mtbFile(@RequestBody rawJson: String): ResponseEntity<Unit> {
+        // Rohes JSON loggen
+        logger.debug("Raw JSON received: $rawJson")
+
+        // In Mtb-Objekt deserialisieren
+        val mtbFile = try {
+            requestProcessor.objectMapper.readValue(rawJson, Mtb::class.java)
+        } catch (e: Exception) {
+            logger.error("Failed to deserialize Mtb JSON", e)
+            return ResponseEntity.badRequest().build()
+        }
         val consentEvaluation = consentEvaluator.check(mtbFile)
         if (consentEvaluation.hasConsent()) {
             logger.debug("Accepted MTB File (DNPM V2) for processing")

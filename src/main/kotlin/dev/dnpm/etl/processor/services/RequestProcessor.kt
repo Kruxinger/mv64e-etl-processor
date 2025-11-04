@@ -52,7 +52,7 @@ class RequestProcessor(
     private val transformationService: TransformationService,
     private val sender: MtbFileSender,
     private val requestService: RequestService,
-    private val objectMapper: ObjectMapper,
+    val objectMapper: ObjectMapper,
     private val applicationEventPublisher: ApplicationEventPublisher,
     private val appConfigProperties: AppConfigProperties,
     private val consentProcessor: ConsentProcessor?,
@@ -67,12 +67,12 @@ class RequestProcessor(
         processMtbFile(mtbFile, randomRequestId())
     }
 
-    fun extractIds(mtbFile: Mtb): Pair<String, Long> {
+    fun extractIds(mtbFile: Mtb): Pair<String, String> {
         val fullId = mtbFile.patient.id  // Java-Feld getter wird automatisch aufgerufen
         val parts = fullId.split("###")
 
         val patientId = parts.getOrNull(0) ?: throw IllegalArgumentException("PatientenID fehlt")
-        val fallId = parts.getOrNull(1)?.toLongOrNull() ?: throw IllegalArgumentException("FallID fehlt oder ungültig")
+        val fallId = parts.getOrNull(1)?: throw IllegalArgumentException("FallID fehlt oder ungültig")
 
         return patientId to fallId
     }

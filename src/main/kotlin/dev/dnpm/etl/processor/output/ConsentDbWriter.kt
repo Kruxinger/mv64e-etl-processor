@@ -13,7 +13,7 @@ class ConsentDbWriter(
     private val props: ConsentDbProperties
 ) {
 
-    fun writeConsent(fallnummer: Long, patientenId: String, broadConsentJson: String, mvConsentJson: String) {
+    fun writeConsent(fallnummer: String, patientenId: String, broadConsentJson: String, mvConsentJson: String) {
         DriverManager.getConnection(props.url, props.user, props.password).use { conn ->
             conn.autoCommit = false
 
@@ -24,7 +24,7 @@ class ConsentDbWriter(
         """.trimIndent()
 
             val exists = conn.prepareStatement(selectSql).use { stmt ->
-                stmt.setLong(1, fallnummer)
+                stmt.setString(1, fallnummer)
                 stmt.setString(2, patientenId)
                 stmt.executeQuery().use { rs ->
                     rs.next()
@@ -42,7 +42,7 @@ class ConsentDbWriter(
                 conn.prepareStatement(updateSql).use { stmt ->
                     stmt.setString(1, broadConsentJson)
                     stmt.setString(2, mvConsentJson)
-                    stmt.setLong(3, fallnummer)
+                    stmt.setString(3, fallnummer)
                     stmt.setString(4, patientenId)
                     stmt.executeUpdate()
                 }
@@ -53,7 +53,7 @@ class ConsentDbWriter(
                 VALUES (?, ?, 0, ?, ?::json, ?::json)
             """.trimIndent()
                 conn.prepareStatement(insertSql).use { stmt ->
-                    stmt.setLong(1, fallnummer)
+                    stmt.setString(1, fallnummer)
                     stmt.setString(2, patientenId)
                     stmt.setTimestamp(3, Timestamp.from(Instant.now()))
                     stmt.setString(4, broadConsentJson)
