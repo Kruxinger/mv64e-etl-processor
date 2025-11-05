@@ -57,13 +57,20 @@ configurations {
 }
 
 repositories {
-    maven {
-        url = uri("https://git.dnpm.dev/api/packages/public-snapshots/maven")
+    repositories {
+        mavenLocal()
+
+        maven {
+            url = uri("https://git.dnpm.dev/api/packages/public-snapshots/maven")
+        }
+
+        maven {
+            url = uri("https://git.dnpm.dev/api/packages/public/maven")
+        }
+
+        mavenCentral()
     }
-    maven {
-        url = uri("https://git.dnpm.dev/api/packages/public/maven")
-    }
-    mavenCentral()
+
 }
 
 dependencies {
@@ -82,7 +89,7 @@ dependencies {
     implementation("org.flywaydb:flyway-mysql")
     implementation("commons-codec:commons-codec")
     implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
-    implementation("dev.pcvolkmer.mv64e:mtb-dto:${versions["mtb-dto"]}") { isChanging = true }
+    implementation(files("libs/mtb-dto-0.1.0-SNAPSHOT.jar"))
     implementation("ca.uhn.hapi.fhir:hapi-fhir-base:${versions["hapi-fhir"]}")
     implementation("ca.uhn.hapi.fhir:hapi-fhir-structures-r4:${versions["hapi-fhir"]}")
     implementation("org.apache.httpcomponents.client5:httpclient5")
