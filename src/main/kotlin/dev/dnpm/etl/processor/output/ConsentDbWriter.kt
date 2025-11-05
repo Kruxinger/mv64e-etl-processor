@@ -36,17 +36,20 @@ class ConsentDbWriter(
                 val updateSql = """
                 UPDATE genomseq_mapping
                 SET broad_consent = ?::json,
-                    mv_consent = ?::json
+                    mv_consent = ?::json,
+                    timestamp = ?
                 WHERE fallnummer = ? AND patienten_id = ?
-            """.trimIndent()
+                """.trimIndent()
                 conn.prepareStatement(updateSql).use { stmt ->
                     stmt.setString(1, broadConsentJson)
                     stmt.setString(2, mvConsentJson)
-                    stmt.setString(3, fallnummer)
-                    stmt.setString(4, patientenId)
+                    stmt.setTimestamp(3, Timestamp.from(Instant.now()))
+                    stmt.setString(4, fallnummer)
+                    stmt.setString(5, patientenId)
                     stmt.executeUpdate()
                 }
-            } else {
+            }
+            else {
                 val insertSql = """
                 INSERT INTO genomseq_mapping
                 (fallnummer, patienten_id, patient_id, timestamp, broad_consent, mv_consent)
