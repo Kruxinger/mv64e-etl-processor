@@ -98,14 +98,20 @@ class RequestProcessor(
         val isConsentOk =
             consentProcessor != null && consentProcessor.consentGatedCheckAndTryEmbedding(mtbFile) || consentProcessor == null
         if (isConsentOk) {
+            consentDbWriter.writeConsent(fallId, patientId, consentToJson(mtbFile), mvConsentToJson(mtbFile))
             if (isGenomDeConsented(mtbFile)) {
                 mtbFile.addGenomDeTan(pseudonymizeService)
             }
             mtbFile pseudonymizeWith pseudonymizeService
             mtbFile anonymizeContentWith pseudonymizeService
+
+            for(d in mtbFile.diagnoses){
+                d.staging = null
+                d.grading = null
+            }
             val request = DnpmV2MtbFileRequest(requestId, transformationService.transform(mtbFile))
 
-            consentDbWriter.writeConsent(fallId, patientId, consentToJson(mtbFile), mvConsentToJson(mtbFile))
+
             saveAndSend(request, pid)
         } else {
             logger.warn("consent check failed file will not be processed further!")
