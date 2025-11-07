@@ -25,7 +25,6 @@ import org.springframework.stereotype.Service
 import java.io.IOException
 import java.time.Clock
 import java.time.Instant
-import java.time.ZoneId
 import java.util.*
 
 
@@ -159,12 +158,12 @@ class ConsentProcessor(
 
                     if (ModelProjectConsentPurpose.SEQUENCING == modelProjectConsentPurpose) {
                         // CONVENTION: wrapping date is date of SEQUENCING consent
-                        mtbFile.metadata.modelProjectConsent.date = resource.dateTime.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+                        mtbFile.metadata.modelProjectConsent.date = resource.dateTime
                     }
 
                     val provision = Provision.builder()
                         .type(ConsentProvision.valueOf(provisionComponent.type.name))
-                        .date(provisionComponent.period.start.toInstant().atZone(ZoneId.systemDefault()).toLocalDate())
+                        .date(provisionComponent.period.start)
                         .purpose(modelProjectConsentPurpose).build()
 
                     mtbFile.metadata.modelProjectConsent.provisions.add(provision)
