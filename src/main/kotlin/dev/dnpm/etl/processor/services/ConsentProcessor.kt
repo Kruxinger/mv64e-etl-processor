@@ -84,9 +84,11 @@ class ConsentProcessor(
         // 2.1. -> nein -> return false
         if (!broadConsentHasBeenAsked) {
             logger.info("broad consent is empty")
-            return false
+        }else{
+            embedBroadConsentResources(mtbFile, broadConsent)
+            logger.info("broad consent found and embedded")
         }
-        embedBroadConsentResources(mtbFile, broadConsent)
+
 
         // 3. MV consent existiert?
         if (mtbFile.metadata.modelProjectConsent == null){
