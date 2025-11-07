@@ -36,14 +36,21 @@ infix fun Mtb.pseudonymizeWith(pseudonymizeService: PseudonymizeService) {
     val patientPseudonym = pseudonymizeService.patientPseudonym(PatientId(this.patient.id)).value
 
     this.episodesOfCare?.forEach { it.patient.id = patientPseudonym }
-    this.carePlans?.forEach {
-        it.patient.id = patientPseudonym
-        it.rebiopsyRequests?.forEach { it.patient.id = patientPseudonym }
-        it.histologyReevaluationRequests?.forEach { it.patient.id = patientPseudonym }
-        it.medicationRecommendations.forEach { it.patient.id = patientPseudonym }
-        it.studyEnrollmentRecommendations?.forEach { it.patient.id = patientPseudonym }
-        it.procedureRecommendations?.forEach { it.patient.id = patientPseudonym }
-        it.geneticCounselingRecommendation.patient.id = patientPseudonym
+    this.carePlans?.forEach { carePlan ->
+        carePlan.patient?.id = patientPseudonym
+        carePlan.rebiopsyRequests?.forEach { it.patient?.id = patientPseudonym }
+        carePlan.histologyReevaluationRequests?.forEach { it.patient?.id = patientPseudonym }
+        carePlan.medicationRecommendations?.forEach { it.patient?.id = patientPseudonym }
+        carePlan.studyEnrollmentRecommendations?.forEach { it.patient?.id = patientPseudonym }
+        carePlan.procedureRecommendations?.forEach { it.patient?.id = patientPseudonym }
+
+        // sicherer Zugriff auf geneticCounselingRecommendation
+        carePlan.geneticCounselingRecommendation?.let { gcr ->
+            if (gcr.patient == null) {
+                gcr.patient = dev.pcvolkmer.mv64e.mtb.Reference()
+            }
+            gcr.patient.id = patientPseudonym
+        }
     }
     this.diagnoses?.forEach { it.patient.id = patientPseudonym }
     this.guidelineTherapies?.forEach { it.patient.id = patientPseudonym }
