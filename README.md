@@ -495,7 +495,7 @@ Severity-Stufe als Ergebnis verwendet.
 ## Docker-Images
 
 Diese Anwendung ist auch als Docker-Image
-verfügbar: https://github.com/pcvolkmer/etl-processor/pkgs/container/etl-processor
+verfügbar: https://github.com/pcvolkmer/mv64e-etl-processor/pkgs/container/mv64e-etl-processor
 
 ### Images lokal bauen
 
