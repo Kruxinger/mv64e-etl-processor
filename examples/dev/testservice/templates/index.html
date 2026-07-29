@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>ETL Test-Service</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+      max-width: 1100px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      line-height: 1.4;
+    }
+    h1 { font-size: 1.4rem; }
+    .sub { opacity: 0.7; font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      border: 1px solid #8884;
+      border-radius: 8px;
+    }
+    button {
+      font-size: 1rem;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      border: 1px solid #8886;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+    }
+    button:hover { background: #1d4ed8; }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    select, label { font-size: 0.9rem; }
+    .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 800px) { .panels { grid-template-columns: 1fr; } }
+    .panel {
+      border: 1px solid #8884;
+      border-radius: 8px;
+      padding: 1rem;
+      min-height: 200px;
+    }
+    .panel h2 { margin-top: 0; font-size: 1.05rem; }
+    .badge {
+      display: inline-block;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.ok { background: #16a34a33; color: #16a34a; }
+    .badge.warn { background: #d9770633; color: #d97706; }
+    .badge.err { background: #dc262633; color: #dc2626; }
+    pre {
+      background: #8881;
+      padding: 0.75rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 320px;
+      font-size: 0.8rem;
+    }
+    .meta { font-size: 0.85rem; opacity: 0.8; margin: 0.3rem 0; }
+    .history { margin-top: 1.5rem; }
+    .history ul { list-style: none; padding: 0; font-size: 0.85rem; }
+    .history li { padding: 0.25rem 0; border-bottom: 1px solid #8882; }
+    .history .kind-sent { color: #2563eb; }
+    .history .kind-received { color: #16a34a; }
+    .empty { opacity: 0.6; font-style: italic; }
+  </style>
+</head>
+<body>
+  <h1>mv64e-etl-processor Test-Service</h1>
+  <div class="sub">
+    Sender + Mock-DNPM:DIP-Empfaenger fuer lokale Tests. ETL: <code>{{ etl_base_url }}</code> -
+    damit der Rundlauf sichtbar wird, muss der ETL mit <code>APP_REST_URI</code> auf diese
+    App zeigen.
+  </div>
+
+  <div class="controls">
+    <button id="sendBtn">An ETL senden</button>
+    <label>
+      <input type="checkbox" id="randomizeId" checked>
+      neue Patient-ID je Sendung (sonst: Duplikat-Erkennung testen)
+    </label>
+    <label>
+      Simulierte DIP-Antwort:
+      <select id="severitySelect">
+        <option value="success">Erfolg</option>
+        <option value="warning">Warnung</option>
+        <option value="error">Fehler</option>
+        <option value="fatal">Fataler Fehler</option>
+      </select>
+    </label>
+    <button id="refreshBtn" style="background:#4b5563">Aktualisieren</button>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <h2>Gesendet (an ETL)</h2>
+      <div id="sentPanel"></div>
+    </div>
+    <div class="panel">
+      <h2>Empfangen (vom ETL, als Mock-DIP)</h2>
+      <div id="receivedPanel"></div>
+    </div>
+  </div>
+
+  <div class="history">
+    <h2>Verlauf</h2>
+    <ul id="historyList"></ul>
+  </div>
+
+  <script>
+    const initialState = {{ state | tojson }};
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s ?? '';
+      return div.innerHTML;
+    }
+
+    function statusBadge(statusCode) {
+      if (statusCode === undefined || statusCode === null) return '<span class="badge err">Fehler</span>';
+      if (statusCode < 300) return `<span class="badge ok">HTTP ${statusCode}</span>`;
+      if (statusCode < 500) return `<span class="badge warn">HTTP ${statusCode}</span>`;
+      return `<span class="badge err">HTTP ${statusCode}</span>`;
+    }
+
+    function renderSent(sent) {
+      const el = document.getElementById('sentPanel');
+      if (!sent) { el.innerHTML = '<p class="empty">Noch nichts gesendet.</p>'; return; }
+      if (!sent.ok) {
+        el.innerHTML = `
+          <div class="meta">${sent.time}</div>
+          <div class="meta">Patient-ID: <code>${escapeHtml(sent.patient_id)}</code></div>
+          <span class="badge err">Verbindungsfehler</span>
+          <pre>${escapeHtml(sent.error)}</pre>`;
+        return;
+      }
+      el.innerHTML = `
+        <div class="meta">${sent.time}</div>
+        <div class="meta">Patient-ID: <code>${escapeHtml(sent.patient_id)}</code></div>
+        ${statusBadge(sent.status_code)}
+        <pre>${escapeHtml(sent.body || '(leerer Body - normal bei 202 Accepted)')}</pre>`;
+    }
+
+    function renderReceived(received) {
+      const el = document.getElementById('receivedPanel');
+      if (!received) { el.innerHTML = '<p class="empty">Noch nichts vom ETL empfangen.</p>'; return; }
+      el.innerHTML = `
+        <div class="meta">${received.time}</div>
+        <div class="meta">Pseudonym: <code>${escapeHtml(received.patient_id)}</code></div>
+        <div class="meta">Content-Type: <code>${escapeHtml(received.content_type)}</code>,
+          Auth-Header: ${received.had_auth_header ? 'ja' : 'nein'},
+          ${received.body_size} Bytes</div>
+        <div class="meta">Antwort an ETL: <strong>${received.replied_severity}</strong></div>
+        <pre>${escapeHtml(received.body_preview)}</pre>`;
+    }
+
+    function renderHistory(history) {
+      const el = document.getElementById('historyList');
+      if (!history || history.length === 0) {
+        el.innerHTML = '<li class="empty">Noch keine Ereignisse.</li>';
+        return;
+      }
+      el.innerHTML = history.map(h =>
+        `<li><span class="kind-${h.kind}">[${h.kind === 'sent' ? 'gesendet' : 'empfangen'}]</span>
+         ${h.time} - ${escapeHtml(h.summary)}</li>`
+      ).join('');
+    }
+
+    function renderState(state) {
+      renderSent(state.last_sent);
+      renderReceived(state.last_received);
+      renderHistory(state.history);
+      document.getElementById('severitySelect').value = state.next_severity;
+    }
+
+    async function refreshState() {
+      const res = await fetch('/state');
+      renderState(await res.json());
+    }
+
+    document.getElementById('sendBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('sendBtn');
+      btn.disabled = true;
+      btn.textContent = 'Sende...';
+      try {
+        const randomize = document.getElementById('randomizeId').checked;
+        await fetch('/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ randomize_patient_id: randomize }),
+        });
+        // small delay: the ETL forwards to us synchronously within its own request,
+        // so state should already be updated, but give it a beat under load
+        await new Promise(r => setTimeout(r, 300));
+        await refreshState();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'An ETL senden';
+      }
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', refreshState);
+
+    document.getElementById('severitySelect').addEventListener('change', async (e) => {
+      await fetch('/set-severity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ severity: e.target.value }),
+      });
+    });
+
+    renderState(initialState);
+  </script>
+</body>
+</html>
