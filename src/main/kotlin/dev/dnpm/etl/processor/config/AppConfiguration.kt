@@ -25,6 +25,8 @@ import dev.dnpm.etl.processor.consent.GicsConsentService
 import dev.dnpm.etl.processor.consent.GicsGetBroadConsentService
 import dev.dnpm.etl.processor.consent.IConsentService
 import dev.dnpm.etl.processor.consent.MtbFileConsentService
+import dev.dnpm.etl.processor.keycloak.KeycloakClientConfig
+import dev.dnpm.etl.processor.keycloak.KeycloakTokenProvider
 import dev.dnpm.etl.processor.monitoring.*
 import dev.dnpm.etl.processor.pseudonym.*
 import dev.dnpm.etl.processor.security.TokenRepository
@@ -69,6 +71,7 @@ import kotlin.time.toJavaDuration
             AppConfigProperties::class,
             PseudonymizeConfigProperties::class,
             GPasConfigProperties::class,
+            GpasKeycloakConfigProperties::class,
             ConsentConfigProperties::class,
             GIcsConfigProperties::class,
         ]
@@ -148,6 +151,60 @@ class AppConfiguration {
     ): Generator {
         logger.info("Selected 'GpasPseudonym Generator'")
         return GpasPseudonymGenerator(configProperties, retryTemplate, restTemplate, appFhirConfig)
+    }
+
+    @Conditional(GpasKeycloakEnabledCondition::class)
+    @Bean
+    fun gpasKeycloakTokenProvider(
+        gpasKeycloakConfigProperties: GpasKeycloakConfigProperties,
+        restTemplate: RestTemplate,
+    ): KeycloakTokenProvider {
+        return KeycloakTokenProvider(
+            KeycloakClientConfig(
+                tokenUri = requireNotNull(gpasKeycloakConfigProperties.tokenUri),
+                clientId = requireNotNull(gpasKeycloakConfigProperties.clientId),
+                clientSecret = requireNotNull(gpasKeycloakConfigProperties.clientSecret),
+            ),
+            restTemplate,
+        )
+    }
+
+    @Conditional(GpasKeycloakEnabledCondition::class)
+    @Bean
+    fun gpasSoapProxyFactoryBeanKeycloak(
+        gpasConfigProperties: GPasConfigProperties,
+        gpasKeycloakTokenProvider: KeycloakTokenProvider,
+    ): JaxWsProxyFactoryBean {
+        val proxyFactory = JaxWsProxyFactoryBean()
+        proxyFactory.serviceClass = GpasSoapService::class.java
+        proxyFactory.address = gpasConfigProperties.soapEndpoint
+        proxyFactory.outInterceptors.add(BearerTokenOutInterceptor(gpasKeycloakTokenProvider))
+        return proxyFactory
+    }
+
+    @Conditional(GpasKeycloakEnabledCondition::class)
+    @Bean
+    fun gpasSoapProxyKeycloak(
+        gpasSoapProxyFactoryBeanKeycloak: JaxWsProxyFactoryBean,
+    ): GpasSoapService {
+        return gpasSoapProxyFactoryBeanKeycloak.create() as GpasSoapService
+    }
+
+    @Conditional(GpasKeycloakEnabledCondition::class)
+    @Bean
+    fun keycloakGpasPseudonymGenerator(
+        gpasConfigProperties: GPasConfigProperties,
+        gpasKeycloakConfigProperties: GpasKeycloakConfigProperties,
+        retryTemplate: RetryTemplate,
+        gpasSoapProxyKeycloak: GpasSoapService,
+    ): Generator {
+        logger.info("Selected 'KeycloakGpasPseudonym Generator'")
+        return KeycloakGpasPseudonymGenerator(
+            gpasConfigProperties,
+            gpasKeycloakConfigProperties,
+            retryTemplate,
+            gpasSoapProxyKeycloak,
+        )
     }
 
     @ConditionalOnProperty(
@@ -341,6 +398,16 @@ class GicsGetBroadConsentEnabledCondition :
     @ConditionalOnProperty(name = ["app.consent.service"], havingValue = "gics_get_bc")
     @ConditionalOnProperty(name = ["app.consent.gics.uri"])
     class OnGicsGetBroadConsentServiceSelected {
+        // Just for Condition
+    }
+}
+
+class GpasKeycloakEnabledCondition :
+    AnyNestedCondition(ConfigurationCondition.ConfigurationPhase.REGISTER_BEAN) {
+
+    @ConditionalOnProperty(name = ["app.pseudonymize.generator"], havingValue = "GPAS_KEYCLOAK")
+    @ConditionalOnProperty(name = ["app.pseudonymize.gpas.soap-endpoint"])
+    class OnGpasKeycloakGeneratorSelected {
         // Just for Condition
     }
 }

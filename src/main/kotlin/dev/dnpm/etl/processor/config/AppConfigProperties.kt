@@ -152,6 +152,9 @@ data class UserProperties(
 enum class PseudonymGenerator {
     BUILDIN,
     GPAS,
+
+    /** Two-step gPAS pseudonymization (Arbeitsnummer -> Vorgangsnummer) via Keycloak Bearer auth */
+    GPAS_KEYCLOAK,
 }
 
 enum class ConsentService {
