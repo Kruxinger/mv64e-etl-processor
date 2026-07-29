@@ -1,0 +1,18 @@
+##
+# LMU-specific overlay on top of docker-compose.yaml.
+#
+# Usage:
+#   docker compose -f docker-compose.yaml -f docker-compose.lmu-override.yml up -d
+#
+# Why an env_file instead of listing each var under `environment:` like the base file does:
+# the base docker-compose.yaml maps each container env var explicitly from a differently-named
+# DNPM_* host var (one line per var, easy to typo/forget one). For the LMU-specific additions we
+# instead load examples/deploy/env-sample.lmu.env (copied+filled-in as your own, real .env file)
+# directly - its keys already ARE the Spring env var names the app expects
+# (APP_PSEUDONYMIZE_GPAS_KEYCLOAK_TOKENURI, APP_CONSENT_DIZ_URI, ...), so there is only one
+# place to get the name right instead of two.
+##
+services:
+  dnpm-etl-processor:
+    env_file:
+      - .env
