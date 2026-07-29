@@ -161,6 +161,9 @@ enum class ConsentService {
     NONE,
     GICS,
     GICS_GET_BC,
+
+    /** Broad Consent lookup against DIZ via Keycloak Bearer auth */
+    DIZ_KEYCLOAK,
 }
 
 data class TransformationProperties(

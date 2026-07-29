@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import dev.dnpm.etl.processor.consent.GicsConsentService
 import dev.dnpm.etl.processor.consent.GicsGetBroadConsentService
 import dev.dnpm.etl.processor.consent.IConsentService
+import dev.dnpm.etl.processor.consent.KeycloakDizConsentService
 import dev.dnpm.etl.processor.consent.MtbFileConsentService
 import dev.dnpm.etl.processor.keycloak.KeycloakClientConfig
 import dev.dnpm.etl.processor.keycloak.KeycloakTokenProvider
@@ -74,6 +75,7 @@ import kotlin.time.toJavaDuration
             GpasKeycloakConfigProperties::class,
             ConsentConfigProperties::class,
             GIcsConfigProperties::class,
+            DizConsentConfigProperties::class,
         ]
 )
 @EnableScheduling
@@ -375,6 +377,74 @@ class AppConfiguration {
         )
     }
 
+    @Conditional(DizKeycloakConsentEnabledCondition::class)
+    @Bean
+    fun dizKeycloakTokenProvider(
+        dizConsentConfigProperties: DizConsentConfigProperties,
+        restTemplate: RestTemplate,
+    ): KeycloakTokenProvider {
+        return KeycloakTokenProvider(
+            KeycloakClientConfig(
+                tokenUri = requireNotNull(dizConsentConfigProperties.keycloakTokenUri),
+                clientId = requireNotNull(dizConsentConfigProperties.keycloakClientId),
+                clientSecret = requireNotNull(dizConsentConfigProperties.keycloakClientSecret),
+            ),
+            restTemplate,
+        )
+    }
+
+    @Conditional(DizKeycloakConsentEnabledCondition::class)
+    @Bean
+    fun dizConsentService(
+        dizConsentConfigProperties: DizConsentConfigProperties,
+        retryTemplate: RetryTemplate,
+        restTemplate: RestTemplate,
+        dizKeycloakTokenProvider: KeycloakTokenProvider,
+        appFhirConfig: AppFhirConfig,
+    ): IConsentService {
+        logger.info("Selected 'KeycloakDizConsentService'")
+        return KeycloakDizConsentService(
+            dizConsentConfigProperties,
+            retryTemplate,
+            restTemplate,
+            dizKeycloakTokenProvider,
+            appFhirConfig,
+        )
+    }
+
+    @Conditional(DizKeycloakConsentEnabledCondition::class)
+    @Bean
+    fun dizConsentProcessor(
+        configProperties: AppConfigProperties,
+        dizConsentConfigProperties: DizConsentConfigProperties,
+        getObjectMapper: JsonMapper,
+        appFhirConfig: AppFhirConfig,
+        dizConsentService: IConsentService,
+    ): ConsentProcessor {
+        // ConsentProcessor is upstream/unmodified and takes a GIcsConfigProperties; DIZ speaks
+        // the same MII Broad Consent shape, so we translate our config into that type here
+        // rather than changing ConsentProcessor itself.
+        val gIcsCompatConfig =
+            GIcsConfigProperties(
+                uri = dizConsentConfigProperties.uri,
+                username = null,
+                password = null,
+                personIdentifierSystem = dizConsentConfigProperties.personIdentifierSystem,
+                broadConsentDomainName = dizConsentConfigProperties.broadConsentDomainName,
+                genomDeConsentDomainName = null,
+                broadConsentPolicyCode = dizConsentConfigProperties.broadConsentPolicyCode,
+                broadConsentPolicySystem = dizConsentConfigProperties.broadConsentPolicySystem,
+                broadConsentPolicyUri = dizConsentConfigProperties.broadConsentPolicyUri,
+            )
+        return ConsentProcessor(
+            configProperties,
+            gIcsCompatConfig,
+            getObjectMapper,
+            appFhirConfig.fhirContext(),
+            dizConsentService,
+        )
+    }
+
     @Bean
     @ConditionalOnMissingBean
     fun iGetConsentService(): IConsentService {
@@ -398,6 +468,16 @@ class GicsGetBroadConsentEnabledCondition :
     @ConditionalOnProperty(name = ["app.consent.service"], havingValue = "gics_get_bc")
     @ConditionalOnProperty(name = ["app.consent.gics.uri"])
     class OnGicsGetBroadConsentServiceSelected {
+        // Just for Condition
+    }
+}
+
+class DizKeycloakConsentEnabledCondition :
+    AnyNestedCondition(ConfigurationCondition.ConfigurationPhase.REGISTER_BEAN) {
+
+    @ConditionalOnProperty(name = ["app.consent.service"], havingValue = "diz_keycloak")
+    @ConditionalOnProperty(name = ["app.consent.diz.uri"])
+    class OnDizKeycloakConsentServiceSelected {
         // Just for Condition
     }
 }
