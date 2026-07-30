@@ -1,18 +1,45 @@
 ##
 # LMU-specific overlay on top of docker-compose.yaml.
 #
-# Usage:
+# Usage (from examples/deploy/, with a filled-in .env sitting right there):
 #   docker compose -f docker-compose.yaml -f docker-compose.lmu-override.yml up -d
 #
-# Why an env_file instead of listing each var under `environment:` like the base file does:
-# the base docker-compose.yaml maps each container env var explicitly from a differently-named
-# DNPM_* host var (one line per var, easy to typo/forget one). For the LMU-specific additions we
-# instead load examples/deploy/env-sample.lmu.env (copied+filled-in as your own, real .env file)
-# directly - its keys already ARE the Spring env var names the app expects
-# (APP_PSEUDONYMIZE_GPAS_KEYCLOAK_TOKENURI, APP_CONSENT_DIZ_URI, ...), so there is only one
-# place to get the name right instead of two.
+# Why explicit "environment:" entries here instead of just "env_file: [.env]":
+# docker-compose.yaml already sets several of these same keys (APP_REST_URI,
+# APP_SECURITY_ADMIN_USER, SPRING_DATASOURCE_URL, ...) via its own DNPM_* indirection.
+# When merging multiple compose files, "environment:" values from a later file win over
+# an earlier file's "environment:" for the same key - but "env_file:" does NOT reliably
+# win over an "environment:" entry from another file. So every key that also exists in
+# docker-compose.yaml is re-declared here (as a same-name passthrough from .env) to
+# guarantee it actually wins; env_file is only used for brand-new keys the base file
+# doesn't know about at all (Keycloak/gPAS/DIZ), where there's nothing to lose against.
 ##
 services:
   dnpm-etl-processor:
+    # docker-compose.yaml pulls Paul's public image by default - use the locally built
+    # LMU image instead (see LMU-README.md: "./gradlew bootBuildImage --imageName=...")
+    image: mv64e-etl-processor:lmu-local
+    pull_policy: never
+    environment:
+      # --- overriding keys docker-compose.yaml also sets, so ours actually wins ---
+      LOGGING_LEVEL_DEV: ${LOGGING_LEVEL_DEV}
+      APP_REST_URI: ${APP_REST_URI}
+      APP_REST_USERNAME: ${APP_REST_USERNAME}
+      APP_REST_PASSWORD: ${APP_REST_PASSWORD}
+      APP_REST_IS_BWHC: ${APP_REST_IS_BWHC}
+      APP_SECURITY_ADMIN_USER: ${APP_SECURITY_ADMIN_USER}
+      APP_SECURITY_ADMIN_PASSWORD: ${APP_SECURITY_ADMIN_PASSWORD}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      APP_PSEUDONYMIZE_PREFIX: ${APP_PSEUDONYMIZE_PREFIX}
+      APP_KAFKA_TOPIC: ${APP_KAFKA_TOPIC}
+      APP_KAFKA_SERVERS: ${APP_KAFKA_SERVERS}
+    # brand-new keys docker-compose.yaml has no opinion on at all (pseudonymize.generator,
+    # consent.*, the gPAS/DIZ Keycloak settings) - no collision, plain env_file is fine
     env_file:
       - .env
+    extra_hosts:
+      # lets the container reach a testservice/etc. running directly on the Windows/Mac/
+      # Linux host via host.docker.internal, same convention the testservice README uses
+      - "host.docker.internal:host-gateway"

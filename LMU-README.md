@@ -54,19 +54,60 @@ als `.pem` in `bindings/ca-certificates/` abgelegt werden, sobald ihr auf einem 
 Netzzugriff seid. Deckt automatisch alle ausgehenden HTTPS-Verbindungen ab (gPAS, DIZ, Keycloak,
 DNPM:DIP), da alle HTTP-Clients hier das JVM-Standard-Truststore nutzen.
 
+## Lokal getestet (jetzt, gegen den Mock-Service statt echtem DNPM:DIP)
+
+`examples/deploy/env-sample.lmu.env` ist eine vollständige, eigenständige `.env`-Vorlage -
+ersetzt `env-sample.env` komplett für diesen Fork, nicht zusätzlich dazu verwenden. Standardmäßig
+aktiv: `BUILDIN`-Pseudonymisierung, kein externer Consent-Service, `APP_REST_URI` zeigt auf
+`examples/dev/testservice` (muss separat laufen, siehe dessen README). Die
+Keycloak/gPAS/DIZ-Blöcke stehen fertig vorbereitet, aber auskommentiert drin - fürs Zielsystem
+einfach umschalten (Details in den Kommentaren der Datei selbst).
+
+Ich habe diesen kompletten Weg tatsächlich einmal live durchgespielt (Image bauen, Compose-Stack
+hochfahren, Button im Testservice-Frontend klicken) und dabei zwei Stolpersteine gefunden und
+gelöst - beide sind unten dokumentiert, damit sie beim nächsten Mal nicht erneut Zeit kosten:
+
+1. Verifiziert: `docker compose -f docker-compose.yaml -f docker-compose.lmu-override.yml
+   config` zeigt, dass die Override-Werte (u.a. `APP_REST_URI`, `APP_PSEUDONYMIZE_PREFIX`)
+   tatsächlich gewinnen und nicht von Pauls `DNPM_*`-Zuordnung überschrieben werden.
+2. Verifiziert: kompletter Rundlauf über den echten, containerisierten ETL - Sendung an
+   `/mtb` → 202 Accepted → ETL pseudonymisiert (Präfix aus `.env` sichtbar im Pseudonym) →
+   Weiterleitung an den Mock-Service kommt an.
+
 ## Was als Nächstes auf dem Zielsystem zu tun ist
 
-1. `examples/deploy/env-sample.env` + `examples/deploy/env-sample.lmu.env` zu einer echten
-   `.env` kopieren/mergen und ausfüllen (Keycloak Client-IDs/Secrets, gPAS SOAP-Endpoint,
-   DIZ-URI, DB-Zugangsdaten). **Nie die ausgefüllte `.env` committen** - ist bereits über
-   `.gitignore` (`/examples/deploy/.env`) ausgeschlossen; bei einer eigenen Kopie außerhalb
-   dieses Pfads selbst darauf achten.
+1. `examples/deploy/env-sample.lmu.env` nach `examples/deploy/.env` kopieren und ausfüllen
+   (Keycloak Client-IDs/Secrets, gPAS SOAP-Endpoint, DIZ-URI, DB-Zugangsdaten, und
+   `APP_REST_URI` von "Mock-Service" auf die echte DNPM:DIP-URL umstellen). **Nie die
+   ausgefüllte `.env` committen** - ist bereits über `.gitignore`
+   (`/examples/deploy/.env`) ausgeschlossen.
 2. Die drei `.pem`-Dateien in `bindings/ca-certificates/` ablegen (Diagnose-Befehle siehe
    `bindings/README.md`, Abschnitt "LMU-Setup").
-3. Image lokal bauen: `./gradlew bootBuildImage` (nutzt automatisch `BP_EMBED_CERTS=true` und
-   die Bindings).
-4. Start mit `docker compose -f examples/deploy/docker-compose.yaml -f examples/deploy/docker-compose.lmu-override.yml up -d`.
-5. Monitoring-Oberfläche prüfen (Port aus `.env`, Standard 8080) - zeigt Verbindungsstatus zu
+3. Image lokal bauen (nutzt automatisch `BP_EMBED_CERTS=true` und die Bindings):
+   ```bash
+   ./gradlew bootBuildImage --imageName=mv64e-etl-processor:lmu-local
+   ```
+   **Bekannter Stolperstein auf Windows mit Docker Desktop:** Falls das mit
+   `'username' must not be null` beim Pull des Builder-Images fehlschlägt, liegt es am
+   `credsStore: "desktop"`-Eintrag in `~/.docker/config.json`, mit dem die
+   Buildpacks-Pull-Logik nicht klarkommt. Workaround, ohne die echte Docker-Config
+   anzufassen - Gradle-Daemon stoppen und mit einer leeren, isolierten Docker-Config neu
+   bauen:
+   ```bash
+   ./gradlew --stop
+   mkdir -p /tmp/docker-config-no-credstore && echo '{"auths":{}}' > /tmp/docker-config-no-credstore/config.json
+   DOCKER_CONFIG=/tmp/docker-config-no-credstore ./gradlew --no-daemon bootBuildImage --imageName=mv64e-etl-processor:lmu-local
+   ```
+4. Start mit (aus `examples/deploy/` heraus):
+   ```bash
+   docker compose -f docker-compose.yaml -f docker-compose.lmu-override.yml up -d
+   ```
+   **Port-Konflikte:** Falls Port 8080 (oder ein anderer in der `.env` verwendeter Port)
+   lokal schon belegt ist, zeigt der Container scheinbar undurchsichtige Fehler (z.B. ein
+   404 von einer völlig anderen, fremden App statt vom ETL) - einfach den Port in der
+   `.env` ändern (z.B. `DNPM_MONITORING_HTTP_PORT=8091`) und `docker compose ... up -d`
+   erneut ausführen.
+5. Monitoring-Oberfläche prüfen (Port aus `.env`) - zeigt Verbindungsstatus zu
    gPAS/gICS/DNPM:DIP; die neuen Keycloak-Pfade haben aktuell noch keine eigene
    Status-Kachel dort (bewusst nicht gebaut, siehe unten), Fehler stehen aber im Log.
 
