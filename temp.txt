@@ -1,0 +1,77 @@
+Hinweise fuer die Claude-Code-Session auf dem LMU-Zielsystem
+==============================================================
+
+Kontext: Dieses Repo ist ein Fork von pcvolkmer/mv64e-etl-processor, angepasst fuer den
+LMU-Workflow (zweistufige gPAS-Pseudonymisierung, Keycloak-gesicherter DIZ-Broad-Consent,
+CA-Cert-Einbettung). Branch: lmu-custom. Lies zuerst LMU-README.md im Repo-Root - das ist
+die Haupt-Doku fuer diesen Fork. CLAUDE.md gibt den Kontext der gesamten 3-teiligen
+MV64e-Strecke (Onkostar-Plugin -> Export-Plugin -> dieser ETL-Processor).
+
+Status: branch lmu-custom ist vollstaendig auf origin gepusht und war beim Schreiben
+dieser Datei up to date - "git checkout lmu-custom" reicht, kein weiterer Push noetig.
+
+Was noch fehlt / vor Ort zu tun ist
+------------------------------------
+
+1. Echte Zugangsdaten besorgen (stehen bewusst nirgends im Repo):
+   - Keycloak Client-ID + Client-Secret fuer gPAS
+   - Keycloak Client-ID + Client-Secret fuer DIZ
+   - echte gPAS-SOAP-Endpoint-URL
+   - echte DIZ-FHIR-Basis-URL
+   - DB-Zugangsdaten fuer die MariaDB/Postgres-Instanz
+
+2. Die drei TLS-Zertifikate besorgen und ablegen:
+   - bindings/ca-certificates/ ist aktuell LEER (nur type-Datei drin)
+   - Diagnose-Vorgehen (openssl-Befehle) steht in bindings/README.md, Abschnitt
+     "LMU-Setup" - dort auch die drei konkreten Probleme erklaert (Keycloak fehlt
+     Intermediate, gPAS selbstsigniert, DIZ interne PKI)
+   - .pem-Dateien einfach in bindings/ca-certificates/ ablegen, kein Code-Change noetig
+
+3. .env erstellen:
+   - examples/deploy/env-sample.lmu.env nach examples/deploy/.env kopieren
+   - ist eine VOLLSTAENDIGE, eigenstaendige Datei - ersetzt env-sample.env komplett,
+     nicht zusaetzlich dazu verwenden
+   - Keycloak/gPAS/DIZ-Block ist auskommentiert drin, nur einkommentieren + Luecken
+     fuellen sobald die echten Werte aus Punkt 1 vorliegen
+   - APP_REST_URI zeigt in der Vorlage noch auf den lokalen Mock-Service - auf die
+     echte DNPM:DIP-URL umstellen, sobald die erreichbar ist
+
+WICHTIGSTER OFFENER PUNKT: DIZ-Consent-API-Form ist nicht gegen das echte System
+verifiziert
+-------------------------------------------------------------------------------
+
+KeycloakDizConsentService (src/main/java/dev/dnpm/etl/processor/consent/) wurde nach
+dem Muster der bestehenden GicsGetBroadConsentService gebaut: ein "richtiger"
+FHIR-Search-GET-Request
+  GET [uri]/Consent?domain:identifier=...&category=...&patient.identifier=...
+NICHT 1:1 wie das Python-Vorbild (simples GET mit an die URL angehaengter PatientId).
+Das war eine bewusste Entscheidung, weil das der Standard ist, den ConsentProcessor
+erwartet - aber ungetestet gegen das echte DIZ, weil das von hier aus nicht erreichbar
+war. Sobald DIZ erreichbar ist: unbedingt zuerst pruefen, ob dieses Request-Format
+tatsaechlich passt. Falls nicht, ist der Blast-Radius klein - nur diese eine Klasse,
+Methode requestResponse(), muss angepasst werden. Bei Bedarf mit echten
+Beispiel-Payloads/curl-Tests gegen DIZ abgleichen, nicht raten.
+
+Bekannte, bereits geloeste Stolpersteine (nur falls sie erneut auftauchen)
+---------------------------------------------------------------------------
+
+- "'username' must not be null" bei "./gradlew bootBuildImage": liegt an
+  credsStore in ~/.docker/config.json, mit dem Buildpacks nicht klarkommt.
+  Workaround (ohne die echte Docker-Config anzufassen) steht in LMU-README.md,
+  Abschnitt "Was als Naechstes auf dem Zielsystem zu tun ist", Schritt 3.
+- Port-Konflikte (z.B. Port 8080 lokal schon von einer anderen App belegt): einfach
+  DNPM_MONITORING_HTTP_PORT in der .env auf einen freien Port aendern.
+- Zwei vorbestehende Testfehler (GicsConsentServiceTest > convertGicsResultToMiiBroadConsent
+  und miiBroadConsentShouldNotBeConvertedAgain) sind bekannt, nicht LMU-bezogen, bereits
+  auf Pauls unveraendertem master vorhanden (verifiziert). Nicht wundern, nicht fixen,
+  falls die volle Testsuite laeuft.
+
+Bewusst nicht umgesetzt (siehe LMU-README.md fuer Details)
+-------------------------------------------------------------
+
+- Keine eigene Monitoring-UI-Kachel fuer die neuen Keycloak-Verbindungen (gPAS/DIZ) -
+  Fehler stehen im Log, aber keine Status-Anzeige im Web-Interface dafuer.
+- Kein Kafka fuer LMU - bewusste Design-Entscheidung, beide Richtungen laufen ueber REST.
+
+Diese Datei ist nur fuer die Uebergabe gedacht und kann geloescht/entfernt werden,
+sobald sie nicht mehr gebraucht wird.
