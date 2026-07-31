@@ -194,7 +194,13 @@ tasks.named<BootBuildImage>("bootBuildImage") {
         "BP_OCI_SOURCE" to "https://github.com/pcvolkmer/mv64e-etl-processor",
         "BP_OCI_LICENSES" to "AGPLv3",
         "BP_OCI_DESCRIPTION" to "ETL Processor for MV § 64e and DNPM:DIP"
-    ))
+        // LMU fork: buildpacks fetch dependencies (e.g. the BellSoft Liberica JRE) from
+        // within their own build container, which does not inherit the host shell's
+        // HTTP_PROXY/HTTPS_PROXY/NO_PROXY - pass them through explicitly when set, so
+        // building behind the Klinikum proxy (see bindings/README.md) works.
+    ) + listOf("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy")
+        .mapNotNull { key -> System.getenv(key)?.let { key to it } }
+        .toMap())
 }
 
 spotless {
