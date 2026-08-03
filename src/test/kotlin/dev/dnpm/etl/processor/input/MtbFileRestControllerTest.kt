@@ -22,6 +22,7 @@ package dev.dnpm.etl.processor.input
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import dev.dnpm.etl.processor.ArgProvider
+import dev.dnpm.etl.processor.CaseId
 import dev.dnpm.etl.processor.CustomMediaType
 import dev.dnpm.etl.processor.consent.ConsentEvaluator
 import dev.dnpm.etl.processor.consent.TtpConsentStatus
@@ -88,6 +89,28 @@ class MtbFileRestControllerTest {
                 .andExpect { status { isAccepted() } }
 
             verify(requestProcessor, times(1)).processMtbFile(any<Mtb>())
+        }
+
+        @Test
+        fun shouldPassCaseIdHeaderToRequestProcessor() {
+            val mtbFileContent =
+                ClassPathResource("mv64e-mtb-fake-patient.json")
+                    .inputStream
+                    .readAllBytes()
+                    .toString(Charsets.UTF_8)
+
+            whenever { requestProcessor.processMtbFile(any<Mtb>(), anyValueClass<CaseId>()) }.thenReturn(true)
+
+            mockMvc
+                .post("/mtb") {
+                    content = mtbFileContent
+                    contentType = CustomMediaType.APPLICATION_VND_DNPM_V2_MTB_JSON
+                    header("X-Case-Id", "0021335882")
+                }
+                .andExpect { status { isAccepted() } }
+
+            verify(requestProcessor, times(1))
+                .processMtbFile(any<Mtb>(), org.mockito.kotlin.eq(CaseId("0021335882")))
         }
 
         @ParameterizedTest

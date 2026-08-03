@@ -22,6 +22,7 @@ package dev.dnpm.etl.processor.input
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import dev.dnpm.etl.processor.CustomMediaType
+import dev.dnpm.etl.processor.RequestId
 import dev.dnpm.etl.processor.consent.ConsentEvaluator
 import dev.dnpm.etl.processor.consent.TtpConsentStatus
 import dev.dnpm.etl.processor.services.RequestProcessor
@@ -161,7 +162,7 @@ class KafkaInputListenerTest {
             )
         )
 
-        verify(requestProcessor, times(1)).processMtbFile(any<Mtb>(), anyValueClass())
+        verify(requestProcessor, times(1)).processMtbFile(any<Mtb>(), anyValueClass<RequestId>())
     }
 
     @Test
@@ -204,7 +205,7 @@ class KafkaInputListenerTest {
                 Optional.empty(),
             )
         )
-        verify(requestProcessor, times(1)).processMtbFile(any<Mtb>(), anyValueClass())
+        verify(requestProcessor, times(1)).processMtbFile(any<Mtb>(), anyValueClass<RequestId>())
     }
 
     @Test
@@ -255,7 +256,7 @@ class KafkaInputListenerTest {
                 Optional.empty(),
             )
         )
-        verify(requestProcessor, times(1)).processMtbFile(any<Mtb>(), anyValueClass())
+        verify(requestProcessor, times(1)).processMtbFile(any<Mtb>(), anyValueClass<RequestId>())
     }
 
     @Test

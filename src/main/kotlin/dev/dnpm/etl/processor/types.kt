@@ -45,6 +45,24 @@ fun randomRequestId() = RequestId(UUID.randomUUID().toString())
 
 fun emptyPatientId() = PatientId("")
 
+/**
+ * Local case/Fallnummer identifier from the source system (e.g. Onkostar). Not part of the
+ * DNPM V2 MTB data model - it is only used for correlation within this ETL-Processor instance
+ * and never forwarded to downstream systems.
+ *
+ * @since 0.16.4
+ */
+@JvmInline value class CaseId(val value: String)
+
+fun emptyCaseId() = CaseId("")
+
+/**
+ * Name of the HTTP header a source system may use to submit the [CaseId] alongside an Mtb file.
+ *
+ * @since 0.16.4
+ */
+const val CASE_ID_HEADER = "X-Case-Id"
+
 @JvmInline value class PatientPseudonym(val value: String)
 
 fun emptyPatientPseudonym() = PatientPseudonym("")

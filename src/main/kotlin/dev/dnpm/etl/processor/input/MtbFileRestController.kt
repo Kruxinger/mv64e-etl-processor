@@ -20,6 +20,8 @@
 
 package dev.dnpm.etl.processor.input
 
+import dev.dnpm.etl.processor.CASE_ID_HEADER
+import dev.dnpm.etl.processor.CaseId
 import dev.dnpm.etl.processor.CustomMediaType
 import dev.dnpm.etl.processor.PatientId
 import dev.dnpm.etl.processor.consent.ConsentEvaluator
@@ -52,9 +54,17 @@ class MtbFileRestController(
                 CustomMediaType.APPLICATION_VND_DNPM_V2_MTB_JSON_VALUE,
             ],
     )
-    fun mtbFile(@RequestBody mtbFile: Mtb): ResponseEntity<Unit> {
+    fun mtbFile(
+        @RequestBody mtbFile: Mtb,
+        @RequestHeader(name = CASE_ID_HEADER, required = false) caseId: String?,
+    ): ResponseEntity<Unit> {
         logger.debug("Accepted MTB File (DNPM V2) for processing")
-        if (requestProcessor.processMtbFile(mtbFile)) {
+        val accepted = if (caseId.isNullOrBlank()) {
+            requestProcessor.processMtbFile(mtbFile)
+        } else {
+            requestProcessor.processMtbFile(mtbFile, CaseId(caseId))
+        }
+        if (accepted) {
             return ResponseEntity.accepted().build()
         }
         return ResponseEntity.badRequest().build()

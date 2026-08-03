@@ -270,6 +270,66 @@ class RequestProcessorTest {
     }
 
     @Test
+    fun testShouldSaveRequestWithGivenCaseId() {
+        doAnswer {
+            Request(
+                1L,
+                randomRequestId(),
+                PatientPseudonym("TEST_12345678901"),
+                PatientId("P1"),
+                Fingerprint("different"),
+                RequestType.MTB_FILE,
+                SubmissionType.TEST,
+                RequestStatus.SUCCESS,
+                Tan.empty(),
+                Instant.parse("2023-08-08T02:00:00Z"),
+            )
+        }
+            .whenever(requestService)
+            .lastMtbFileRequestForPatientPseudonym(anyValueClass())
+
+        doAnswer { false }
+            .whenever(requestService)
+            .isLastRequestWithKnownStatusDeletion(anyValueClass())
+
+        doAnswer { MtbFileSender.Response(status = RequestStatus.SUCCESS) }
+            .whenever(sender)
+            .send(any<DnpmV2MtbFileRequest>())
+
+        doAnswer { it.arguments[0] as String }
+            .whenever(pseudonymizeService)
+            .patientPseudonym(anyValueClass())
+
+        doAnswer { it.arguments[0] }.whenever(transformationService).transform(any<Mtb>())
+
+        whenever(consentProcessor.consentGatedCheckAndTryEmbedding(any())).thenReturn(true)
+
+        val mtbFile =
+            Mtb.builder()
+                .patient(Patient.builder().id("123").build())
+                .episodesOfCare(
+                    listOf(
+                        MtbEpisodeOfCare.builder()
+                            .id("1")
+                            .patient(Reference.builder().id("123").build())
+                            .period(
+                                PeriodDate.builder()
+                                    .start(Date.from(Instant.parse("2021-01-01T00:00:00.00Z")))
+                                    .build()
+                            )
+                            .build()
+                    )
+                )
+                .build()
+
+        this.requestProcessor.processMtbFile(mtbFile, CaseId("0021335882"))
+
+        val requestCaptor = argumentCaptor<Request>()
+        verify(requestService, times(1)).save(requestCaptor.capture())
+        assertThat(requestCaptor.firstValue.caseId).isEqualTo(CaseId("0021335882"))
+    }
+
+    @Test
     fun testShouldSendMtbFileAndSendErrorEvent() {
         doAnswer {
             Request(

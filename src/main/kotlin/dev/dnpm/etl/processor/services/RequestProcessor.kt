@@ -62,7 +62,15 @@ class RequestProcessor(
         return processMtbFile(mtbFile, randomRequestId())
     }
 
+    fun processMtbFile(mtbFile: Mtb, caseId: CaseId): Boolean {
+        return processMtbFile(mtbFile, randomRequestId(), caseId)
+    }
+
     fun processMtbFile(mtbFile: Mtb, requestId: RequestId): Boolean {
+        return processMtbFile(mtbFile, requestId, emptyCaseId())
+    }
+
+    fun processMtbFile(mtbFile: Mtb, requestId: RequestId, caseId: CaseId): Boolean {
         val isConsentOk =
             consentProcessor != null && consentProcessor.consentGatedCheckAndTryEmbedding(mtbFile) ||
                     consentProcessor == null
@@ -76,7 +84,7 @@ class RequestProcessor(
             mtbFile pseudonymizeWith pseudonymizeService
             mtbFile anonymizeContentWith pseudonymizeService
             val request = DnpmV2MtbFileRequest(requestId, transformationService.transform(mtbFile))
-            saveAndSend(request)
+            saveAndSend(request, caseId)
         } catch (e: Exception) {
             logger.error("Error while processing MtbFile", e)
             requestService.save(
@@ -91,6 +99,7 @@ class RequestProcessor(
                     RequestStatus.ERROR,
                     Tan.empty(),
                     report = Report("Fehlerhafte Eingangsdaten. Keine Verarbeitung oder Weiterleitung."),
+                    caseId = caseId,
                 )
             )
             return false
@@ -98,7 +107,7 @@ class RequestProcessor(
         return true
     }
 
-    private fun <T> saveAndSend(request: MtbFileRequest<T>) {
+    private fun <T> saveAndSend(request: MtbFileRequest<T>, caseId: CaseId = emptyCaseId()) {
         var submissionType: SubmissionType =
             when (request) {
                 is DnpmV2MtbFileRequest -> {
@@ -134,6 +143,7 @@ class RequestProcessor(
                     tan = Tan(request.content.metadata?.transferTan.orEmpty()),
                     followupCount = maxFollowUpCount,
                     expectedFollowupCount = request.content.followUps?.size ?: 0,
+                    caseId = caseId,
                 )
             )
             // Exit - no further processing
@@ -173,6 +183,7 @@ class RequestProcessor(
                 tan = Tan(request.content.metadata?.transferTan.orEmpty()),
                 followupCount = maxFollowUpCount,
                 expectedFollowupCount = request.content.followUps?.size ?: 0,
+                caseId = caseId,
             )
         )
 

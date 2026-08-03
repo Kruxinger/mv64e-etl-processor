@@ -91,6 +91,10 @@
             <div>
                 [[ ${request.tan} ]]
             </div>
+            <div th:if="${not #strings.isEmpty(request.caseId.value)}">Fall-ID</div>
+            <div th:if="${not #strings.isEmpty(request.caseId.value)}">
+                [[ ${request.caseId.value} ]]
+            </div>
             </th:block>
         </div>
     </div>
