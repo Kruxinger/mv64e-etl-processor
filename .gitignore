@@ -41,6 +41,6 @@ out/
 ### VS Code ###
 .vscode/
 /examples/dev/gpas*
-/examples/deploy/.env
+/deploy/.env
 /examples/dev/gICS*
 /examples/dev/gPAS*

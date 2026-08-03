@@ -78,7 +78,7 @@ bleibt dann aber leer.
 ## DIZ/Keycloak-Consent-Mock (LMU-Fork, `app.consent.service=diz_keycloak`)
 
 Damit sich `KeycloakDizConsentService` gegen diesen Mock statt gegen das echte DIZ testen
-laesst, in der `.env` (siehe `examples/deploy/env-sample.lmu.env`):
+laesst, in der `.env` (siehe `deploy/env-sample.lmu.env`):
 
 ```
 APP_CONSENT_SERVICE=diz_keycloak

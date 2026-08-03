@@ -1,7 +1,7 @@
 ##
 # LMU-specific overlay on top of docker-compose.yaml.
 #
-# Usage (from examples/deploy/, with a filled-in .env sitting right there):
+# Usage (from deploy/, with a filled-in .env sitting right there):
 #   docker compose -f docker-compose.yaml -f docker-compose.lmu-override.yml up -d
 #
 # Why explicit "environment:" entries here instead of just "env_file: [.env]":

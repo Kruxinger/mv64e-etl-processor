@@ -28,7 +28,7 @@ Was noch fehlt / vor Ort zu tun ist
    - .pem-Dateien einfach in bindings/ca-certificates/ ablegen, kein Code-Change noetig
 
 3. .env erstellen:
-   - examples/deploy/env-sample.lmu.env nach examples/deploy/.env kopieren
+   - deploy/env-sample.lmu.env nach deploy/.env kopieren
    - ist eine VOLLSTAENDIGE, eigenstaendige Datei - ersetzt env-sample.env komplett,
      nicht zusaetzlich dazu verwenden
    - Keycloak/gPAS/DIZ-Block ist auskommentiert drin, nur einkommentieren + Luecken

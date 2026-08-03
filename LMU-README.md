@@ -56,7 +56,7 @@ DNPM:DIP), da alle HTTP-Clients hier das JVM-Standard-Truststore nutzen.
 
 ## Lokal getestet (jetzt, gegen den Mock-Service statt echtem DNPM:DIP)
 
-`examples/deploy/env-sample.lmu.env` ist eine vollständige, eigenständige `.env`-Vorlage -
+`deploy/env-sample.lmu.env` ist eine vollständige, eigenständige `.env`-Vorlage -
 ersetzt `env-sample.env` komplett für diesen Fork, nicht zusätzlich dazu verwenden. Standardmäßig
 aktiv: `BUILDIN`-Pseudonymisierung, kein externer Consent-Service, `APP_REST_URI` zeigt auf
 `examples/dev/testservice` (muss separat laufen, siehe dessen README). Die
@@ -76,11 +76,11 @@ gelöst - beide sind unten dokumentiert, damit sie beim nächsten Mal nicht erne
 
 ## Was als Nächstes auf dem Zielsystem zu tun ist
 
-1. `examples/deploy/env-sample.lmu.env` nach `examples/deploy/.env` kopieren und ausfüllen
+1. `deploy/env-sample.lmu.env` nach `deploy/.env` kopieren und ausfüllen
    (Keycloak Client-IDs/Secrets, gPAS SOAP-Endpoint, DIZ-URI, DB-Zugangsdaten, und
    `APP_REST_URI` von "Mock-Service" auf die echte DNPM:DIP-URL umstellen). **Nie die
    ausgefüllte `.env` committen** - ist bereits über `.gitignore`
-   (`/examples/deploy/.env`) ausgeschlossen.
+   (`/deploy/.env`) ausgeschlossen.
 2. Die drei `.pem`-Dateien in `bindings/ca-certificates/` ablegen (Diagnose-Befehle siehe
    `bindings/README.md`, Abschnitt "LMU-Setup").
 3. Image lokal bauen (nutzt automatisch `BP_EMBED_CERTS=true` und die Bindings):
@@ -98,7 +98,7 @@ gelöst - beide sind unten dokumentiert, damit sie beim nächsten Mal nicht erne
    mkdir -p /tmp/docker-config-no-credstore && echo '{"auths":{}}' > /tmp/docker-config-no-credstore/config.json
    DOCKER_CONFIG=/tmp/docker-config-no-credstore ./gradlew --no-daemon bootBuildImage --imageName=mv64e-etl-processor:lmu-local
    ```
-4. Start mit (aus `examples/deploy/` heraus):
+4. Start mit (aus `deploy/` heraus):
    ```bash
    docker compose -f docker-compose.yaml -f docker-compose.lmu-override.yml up -d
    ```

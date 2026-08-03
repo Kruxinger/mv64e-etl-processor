@@ -7,7 +7,7 @@ Die Datei `type` gibt dabei an, dass hier CA Zertifikate zu finden sind.
 ## LMU-Setup: die drei benötigten Zertifikate
 
 Keycloak, gPAS und DIZ (siehe `APP_PSEUDONYMIZE_GPAS_KEYCLOAK_*` / `APP_CONSENT_DIZ_*` in
-`examples/deploy/env-sample.lmu.env`) sitzen im Uniklinikum-Netz hinter drei unterschiedlichen,
+`deploy/env-sample.lmu.env`) sitzen im Uniklinikum-Netz hinter drei unterschiedlichen,
 jeweils eigenwilligen TLS-Setups:
 
 | Service  | Problem                                            | Lösung                                    |

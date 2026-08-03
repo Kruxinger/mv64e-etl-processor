@@ -26,7 +26,7 @@ import org.springframework.core.env.StandardEnvironment
 import org.springframework.core.env.SystemEnvironmentPropertySource
 
 /**
- * Verifies that env-var names as documented in examples/deploy/env-sample.lmu.env actually
+ * Verifies that env-var names as documented in deploy/env-sample.lmu.env actually
  * bind to [GpasKeycloakConfigProperties] via Spring's relaxed binding - so a typo here is
  * caught by CI instead of silently producing a null config on the target system later.
  */
