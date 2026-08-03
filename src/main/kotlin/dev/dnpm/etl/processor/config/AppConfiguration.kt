@@ -48,6 +48,7 @@ import org.springframework.context.annotation.Conditional
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.ConfigurationCondition
 import org.springframework.data.jdbc.repository.config.AbstractJdbcConfiguration
+import org.springframework.http.converter.FormHttpMessageConverter
 import org.springframework.http.converter.StringHttpMessageConverter
 import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter
 import org.springframework.retry.RetryCallback
@@ -98,6 +99,12 @@ class AppConfiguration {
         return RestTemplateBuilder()
             .messageConverters(
                 stringHttpMessageConverter(),
+                // LMU fork: needed for KeycloakTokenProvider's client-credentials/password-grant
+                // token requests (application/x-www-form-urlencoded body) - without it, every
+                // Keycloak token request (gPAS and DIZ) fails with "No HttpMessageConverter for
+                // ... LinkedMultiValueMap and content type application/x-www-form-urlencoded"
+                // before ever reaching the actual downstream service.
+                FormHttpMessageConverter(),
                 jacksonJsonHttpMapperConverter(jsonMapper),
             )
             .build()

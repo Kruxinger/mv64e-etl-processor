@@ -94,8 +94,18 @@ gelöst - beide sind unten dokumentiert, damit sie beim nächsten Mal nicht erne
    ausgefüllte `.env` committen** - ist bereits über `.gitignore`
    (`/deploy/.env`) ausgeschlossen.
 2. Die drei `.pem`-Dateien in `bindings/ca-certificates/` ablegen (Diagnose-Befehle siehe
-   `bindings/README.md`, Abschnitt "LMU-Setup").
-3. Image lokal bauen (nutzt automatisch `BP_EMBED_CERTS=true` und die Bindings):
+   `bindings/README.md`, Abschnitt "LMU-Setup"). Für gPAS/DIZ/Keycloak liegen bereits welche
+   im Repo (`diz-klinikum-subca-g3.pem`, `geant-tls-rsa-1-intermediate.pem`,
+   `gpas-srvdiz089p-selfsigned.pem`) - nur bei abweichenden Hosts/neu ausgestellten
+   Zertifikaten neu diagnostizieren.
+3. **CSS/JS-Bundles bauen** (leicht zu übersehen, steht nur im Haupt-`README.md`, Abschnitt
+   "Entwicklungssetup" - ohne diesen Schritt bleibt `src/main/resources/static/` leer und die
+   komplette Oberfläche lädt ohne Styling, `main.css` liefert 404):
+   ```bash
+   npm install
+   npm run build
+   ```
+4. Image lokal bauen (nutzt automatisch `BP_EMBED_CERTS=true` und die Bindings):
    ```bash
    ./gradlew bootBuildImage --imageName=mv64e-etl-processor:lmu-local
    ```
@@ -110,24 +120,34 @@ gelöst - beide sind unten dokumentiert, damit sie beim nächsten Mal nicht erne
    mkdir -p /tmp/docker-config-no-credstore && echo '{"auths":{}}' > /tmp/docker-config-no-credstore/config.json
    DOCKER_CONFIG=/tmp/docker-config-no-credstore ./gradlew --no-daemon bootBuildImage --imageName=mv64e-etl-processor:lmu-local
    ```
-4. Start mit (aus `deploy/` heraus):
+5. Start mit (aus `deploy/` heraus, IMMER mit beiden `-f`-Flags und explizitem
+   Projektnamen - Compose merkt sich das nicht zwischen Aufrufen, und auf einem geteilten
+   Server können andere Compose-Projekte denselben Default-Projektnamen "deploy" ziehen):
    ```bash
-   docker compose -f docker-compose.yaml -f docker-compose.lmu-override.yml up -d
+   docker compose -p mv64e-etl-processor -f docker-compose.yaml -f docker-compose.lmu-override.yml up -d
+   ```
+   Kontrollieren, dass wirklich das eigene Image läuft, nicht Pauls Default-Image (passiert,
+   wenn `-f docker-compose.lmu-override.yml` vergessen wird):
+   ```bash
+   docker inspect mv64e-etl-processor-dnpm-etl-processor-1 --format '{{.Config.Image}}'
+   # muss "mv64e-etl-processor:lmu-local" zeigen
    ```
    **Port-Konflikte:** Falls Port 8080 (oder ein anderer in der `.env` verwendeter Port)
    lokal schon belegt ist, zeigt der Container scheinbar undurchsichtige Fehler (z.B. ein
    404 von einer völlig anderen, fremden App statt vom ETL) - einfach den Port in der
    `.env` ändern (z.B. `DNPM_MONITORING_HTTP_PORT=8091`) und `docker compose ... up -d`
    erneut ausführen.
-5. Monitoring-Oberfläche prüfen (Port aus `.env`) - zeigt Verbindungsstatus zu
-   gPAS/gICS/DNPM:DIP; die neuen Keycloak-Pfade haben aktuell noch keine eigene
-   Status-Kachel dort (bewusst nicht gebaut, siehe unten), Fehler stehen aber im Log.
+6. Monitoring-Oberfläche prüfen (Port aus `.env`, Pfad `/configs`) - zeigt
+   Verbindungsstatus zu gPAS/gICS/DNPM:DIP sowie (LMU-Fork) eine Kachel "Letzte DIZ
+   Consent-Abfrage" mit Zeitpunkt, angefragter Patient-ID, Erreichbarkeit, Consent-Status
+   und Rohantwort der letzten tatsächlichen Anfrage. Fehler stehen zusätzlich im Log.
 
 ## Bewusst nicht gebaut (Scope-Grenze)
 
-- Keine eigene Monitoring-UI-Kachel für die Keycloak-Verbindungen (ConnectionCheckService
-  ist ein `sealed class` in Pauls `monitoring`-Package - neue Subklasse wäre möglich, aber
-  Thymeleaf-Template-Änderungen dafür standen nicht im Fokus). Bei Bedarf nachrüstbar.
+- Keine eigene Monitoring-UI-Kachel für gPAS-Keycloak (nur DIZ-Consent hat inzwischen eine,
+  s.o. - `ConnectionCheckResult`/`ConnectionCheckService` in
+  `src/main/kotlin/dev/dnpm/etl/processor/monitoring/`, `DizConsentConnectionCheckService`
+  als Beispiel für eine weitere Subklasse). Bei Bedarf nachrüstbar.
 - Keine Kafka-Anbindung für LMU (bewusste Entscheidung, siehe Chat-Verlauf: Kafka + ETL im
   selben Compose-Stack ohne HA bringt kaum Vorteile gegenüber REST für Ein- und Ausgang).
 

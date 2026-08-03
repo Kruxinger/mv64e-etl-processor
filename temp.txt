@@ -69,9 +69,25 @@ Bekannte, bereits geloeste Stolpersteine (nur falls sie erneut auftauchen)
 - "'username' must not be null" bei "./gradlew bootBuildImage": liegt an
   credsStore in ~/.docker/config.json, mit dem Buildpacks nicht klarkommt.
   Workaround (ohne die echte Docker-Config anzufassen) steht in LMU-README.md,
-  Abschnitt "Was als Naechstes auf dem Zielsystem zu tun ist", Schritt 3.
+  Abschnitt "Was als Naechstes auf dem Zielsystem zu tun ist", Schritt 4.
 - Port-Konflikte (z.B. Port 8080 lokal schon von einer anderen App belegt): einfach
-  DNPM_MONITORING_HTTP_PORT in der .env auf einen freien Port aendern.
+  DNPM_MONITORING_HTTP_PORT in der .env auf einen freien Port aendern - UND SICHERGEHEN,
+  dass diese Aenderung nicht durch ein spaeteres "cp env-sample.lmu.env .env" wieder
+  ueberschrieben wird (ist uns einmal passiert).
+- CSS/JS im Web-UI komplett unformatiert / main.css liefert 404: "npm install && npm run
+  build" wurde vor dem Gradle-Build vergessen (steht nur im Haupt-README.md, nicht in
+  LMU-README.md - jetzt dort als Schritt 3 ergaenzt). Ohne diesen Schritt bleibt
+  src/main/resources/static/ leer.
+- "docker compose up" zieht Pauls ghcr.io/ccc-mf/etl-processor:latest statt des eigenen
+  lmu-local-Images: docker-compose.lmu-override.yml wurde vergessen (nur
+  "-f docker-compose.yaml" statt beider "-f"-Flags). Compose merkt sich das nicht
+  zwischen Aufrufen - IMMER beide Flags mitgeben, siehe LMU-README.md Schritt 5.
+- Keycloak-Token-Requests (gPAS UND DIZ) schlagen fehl mit "No HttpMessageConverter for
+  ... LinkedMultiValueMap and content type application/x-www-form-urlencoded": der
+  geteilte RestTemplate-Bean in AppConfiguration.kt hatte keinen FormHttpMessageConverter
+  registriert (RestTemplateBuilder.messageConverters(...) ersetzt die Spring-Boot-Defaults
+  komplett statt sie zu ergaenzen). Gefixt durch Hinzufuegen von FormHttpMessageConverter()
+  zur Konverter-Liste.
 - Zwei vorbestehende Testfehler (GicsConsentServiceTest > convertGicsResultToMiiBroadConsent
   und miiBroadConsentShouldNotBeConvertedAgain) sind bekannt, nicht LMU-bezogen, bereits
   auf Pauls unveraendertem master vorhanden (verifiziert). Nicht wundern, nicht fixen,
@@ -80,8 +96,8 @@ Bekannte, bereits geloeste Stolpersteine (nur falls sie erneut auftauchen)
 Bewusst nicht umgesetzt (siehe LMU-README.md fuer Details)
 -------------------------------------------------------------
 
-- Keine eigene Monitoring-UI-Kachel fuer die neuen Keycloak-Verbindungen (gPAS/DIZ) -
-  Fehler stehen im Log, aber keine Status-Anzeige im Web-Interface dafuer.
+- Keine eigene Monitoring-UI-Kachel fuer gPAS-Keycloak (DIZ-Consent hat inzwischen eine,
+  "Letzte DIZ Consent-Abfrage" unter /configs).
 - Kein Kafka fuer LMU - bewusste Design-Entscheidung, beide Richtungen laufen ueber REST.
 
 Diese Datei ist nur fuer die Uebergabe gedacht und kann geloescht/entfernt werden,
