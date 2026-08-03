@@ -1,7 +1,7 @@
 """
 Kleiner Test-Client + Mock-DNPM:DIP fuer den mv64e-etl-processor.
 
-Zwei Rollen in einer kleinen Flask-App:
+Drei Rollen in einer kleinen Flask-App:
 
 1. Sender: schickt auf Knopfdruck ein komplexes, echtes Mtb-Beispiel
    (fixtures/mv64e-mtb-fake-patient.json, aus den eigenen Testressourcen
@@ -10,6 +10,12 @@ Zwei Rollen in einer kleinen Flask-App:
 2. Empfaenger: simuliert DNPM:DIP - nimmt entgegen, was der ETL nach
    erfolgreicher Verarbeitung weiterleitet (APP_REST_URI muss auf diese
    App zeigen), zeigt es im Frontend an.
+3. Mock fuer DIZ (LMU-Fork, Consent-Service "diz_keycloak"): beantwortet
+   Keycloak-Token-Requests und die FHIR-Search-Consent-Abfrage
+   (GET /Consent?...) des ETL, damit sich der diz_keycloak-Codepfad testen
+   laesst, ohne dass echtes DIZ/Keycloak erreichbar sein muss. Welche
+   Patient-IDs einen (Mock-)Consent haben, wird ueber das Sende-Formular
+   gesteuert (siehe /send).
 
 Nur fuer lokale Entwicklung/Tests gedacht, keine Auth-Haertung noetig.
 """
@@ -22,7 +28,7 @@ import logging
 import os
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -41,6 +47,13 @@ ETL_BASE_URL = os.environ.get("ETL_BASE_URL", "http://localhost:8000").rstrip("/
 ETL_USERNAME = os.environ.get("ETL_USERNAME", "admin")
 ETL_PASSWORD = os.environ.get("ETL_PASSWORD", "very-secret")
 
+# must match app.consent.diz.broad-consent-policy-code/-system in the ETL's DizConsentConfigProperties
+# (defaults shown here - override via env if the ETL side was reconfigured to non-default values)
+CONSENT_POLICY_CODE = os.environ.get("CONSENT_POLICY_CODE", "2.16.840.1.113883.3.1937.777.24.5.3.6")
+CONSENT_POLICY_SYSTEM = os.environ.get(
+    "CONSENT_POLICY_SYSTEM", "urn:oid:2.16.840.1.113883.3.1937.777.24.5.3"
+)
+
 # what the /mtb/etl/patient-record receiver replies with on the *next* call,
 # selectable from the frontend so you can test SUCCESS/WARNING/ERROR/DUPLICATION
 # handling in the ETL's own monitoring UI without touching real gPAS/gICS/DIP.
@@ -56,6 +69,9 @@ state = {
     "next_severity": "success",
     "last_sent": None,
     "last_received": None,
+    "last_consent_check": None,
+    "last_token_request": None,
+    "consented_patient_ids": [],  # patient IDs the mock currently has a Consent on file for
     "history": [],  # newest first, {time, kind, summary}
 }
 
@@ -71,17 +87,22 @@ def _record_history(kind: str, summary: str) -> None:
     del state["history"][MAX_HISTORY:]
 
 
-def _build_payload(randomize_patient_id: bool) -> tuple[dict, str]:
-    """Returns (parsed payload, patient id used). Random id avoids duplicate-detection
-    kicking in when you just want to see a fresh file go through; keep the same id to
-    deliberately test duplicate detection instead."""
+def _build_payload(randomize_patient_id: bool, explicit_patient_id: str | None) -> tuple[dict, str]:
+    """Returns (parsed payload, patient id used). An explicit id (typed into the frontend) wins
+    over randomization, so you can pick an id you also marked as having a Consent. Otherwise a
+    random id avoids duplicate-detection kicking in when you just want to see a fresh file go
+    through; keep the same id to deliberately test duplicate detection instead."""
+    if explicit_patient_id:
+        # simple text substitution: the fixture references the same patient id in many
+        # nested "patient": {"id": "..."} spots, a plain string replace keeps them consistent
+        # without having to walk the whole nested structure by hand
+        randomized_raw = FIXTURE_RAW.replace(ORIGINAL_PATIENT_ID, explicit_patient_id)
+        return json.loads(randomized_raw), explicit_patient_id
+
     if not randomize_patient_id:
         return json.loads(FIXTURE_RAW), ORIGINAL_PATIENT_ID
 
     new_id = str(uuid.uuid4())
-    # simple text substitution: the fixture references the same patient id in many
-    # nested "patient": {"id": "..."} spots, a plain string replace keeps them consistent
-    # without having to walk the whole nested structure by hand
     randomized_raw = FIXTURE_RAW.replace(ORIGINAL_PATIENT_ID, new_id)
     return json.loads(randomized_raw), new_id
 
@@ -98,11 +119,24 @@ def index():
 
 @app.route("/send", methods=["POST"])
 def send():
-    randomize = request.json.get("randomize_patient_id", True) if request.is_json else True
-    payload, patient_id = _build_payload(randomize)
+    body = request.json if request.is_json else {}
+    randomize = body.get("randomize_patient_id", True)
+    explicit_patient_id = (body.get("patient_id") or "").strip() or None
+    has_consent = bool(body.get("has_consent", False))
+
+    payload, patient_id = _build_payload(randomize, explicit_patient_id)
+
+    with state_lock:
+        already_consented = patient_id in state["consented_patient_ids"]
+        if has_consent and not already_consented:
+            state["consented_patient_ids"].append(patient_id)
+        elif not has_consent and already_consented:
+            state["consented_patient_ids"].remove(patient_id)
 
     url = f"{ETL_BASE_URL}/mtb"
-    log.info("Sende MTB-Datei fuer Patient %s an %s", patient_id, url)
+    log.info(
+        "Sende MTB-Datei fuer Patient %s an %s (Mock-Consent: %s)", patient_id, url, has_consent
+    )
 
     try:
         response = requests.post(
@@ -117,6 +151,7 @@ def send():
             "status_code": response.status_code,
             "body": response.text,
             "patient_id": patient_id,
+            "has_consent": has_consent,
             "time": _now(),
         }
     except requests.RequestException as e:
@@ -125,6 +160,7 @@ def send():
             "ok": False,
             "error": str(e),
             "patient_id": patient_id,
+            "has_consent": has_consent,
             "time": _now(),
         }
 
@@ -132,7 +168,8 @@ def send():
         state["last_sent"] = result
         _record_history(
             "sent",
-            f"Patient {patient_id[:8]}... -> HTTP {result.get('status_code', 'ERR')}",
+            f"Patient {patient_id[:8]}... (Consent: {'ja' if has_consent else 'nein'}) "
+            f"-> HTTP {result.get('status_code', 'ERR')}",
         )
 
     return jsonify(result)
@@ -206,6 +243,120 @@ def set_severity():
     with state_lock:
         state["next_severity"] = severity
     return jsonify({"ok": True, "severity": severity})
+
+
+def _build_permit_consent_bundle(patient_id: str) -> dict:
+    """Minimal-but-valid MII Broad Consent Bundle: one active Consent resource with a single
+    'permit' provision matching CONSENT_POLICY_CODE/-SYSTEM, which is all ConsentProcessor's
+    getProvisionTypeByPolicyCode() actually looks for. Period is anchored to "now" so it never
+    expires during local testing."""
+    now = datetime.now(timezone.utc)
+    start = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    end = (now + timedelta(days=3650)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    return {
+        "resourceType": "Bundle",
+        "type": "searchset",
+        "total": 1,
+        "entry": [
+            {
+                "resource": {
+                    "resourceType": "Consent",
+                    "id": f"mock-consent-{patient_id}",
+                    "status": "active",
+                    "scope": {
+                        "coding": [
+                            {
+                                "system": "http://terminology.hl7.org/CodeSystem/consentscope",
+                                "code": "research",
+                            }
+                        ]
+                    },
+                    "patient": {"display": f"Patienten-ID {patient_id}"},
+                    "dateTime": now.strftime("%Y-%m-%dT%H:%M:%S+00:00"),
+                    "policy": [{"uri": "urn:oid:2.16.840.1.113883.3.1937.777.24.2.1790"}],
+                    "provision": {
+                        "type": "deny",
+                        "period": {"start": start, "end": end},
+                        "provision": [
+                            {
+                                "type": "permit",
+                                "period": {"start": start, "end": end},
+                                "code": [
+                                    {
+                                        "coding": [
+                                            {
+                                                "system": CONSENT_POLICY_SYSTEM,
+                                                "code": CONSENT_POLICY_CODE,
+                                                "display": "Mock: MDAT erheben",
+                                            }
+                                        ]
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                }
+            }
+        ],
+    }
+
+
+def _build_empty_consent_bundle() -> dict:
+    return {"resourceType": "Bundle", "type": "searchset", "total": 0, "entry": []}
+
+
+@app.route("/Consent", methods=["GET"])
+def consent_search():
+    """Mocks DIZ's FHIR search endpoint that KeycloakDizConsentService queries
+    (GET [uri]/Consent?domain:identifier=...&category=...&patient.identifier=...). Returns a
+    permit Bundle for patient ids marked via /send's "has_consent" checkbox, an empty Bundle
+    (no entries -> "not asked") for everything else."""
+    raw_identifier = request.args.get("patient.identifier", "")
+    patient_id = raw_identifier.split("|", 1)[-1] if raw_identifier else None
+    had_auth_header = request.headers.get("Authorization", "").lower().startswith("bearer ")
+
+    with state_lock:
+        has_consent = bool(patient_id) and patient_id in state["consented_patient_ids"]
+        check = {
+            "time": _now(),
+            "patient_id": patient_id,
+            "had_auth_header": had_auth_header,
+            "consent_found": has_consent,
+            "query": dict(request.args),
+        }
+        state["last_consent_check"] = check
+        _record_history(
+            "consent",
+            f"Consent-Abfrage Patient {patient_id}: {'gefunden' if has_consent else 'kein Consent'}",
+        )
+
+    bundle = _build_permit_consent_bundle(patient_id) if has_consent else _build_empty_consent_bundle()
+    log.info(
+        "DIZ-Consent-Abfrage (Mock) fuer Patient %s -> %s",
+        patient_id,
+        "PERMIT" if has_consent else "leer",
+    )
+    return jsonify(bundle), 200
+
+
+@app.route("/mock-keycloak/token", methods=["POST"])
+def keycloak_token():
+    """Mocks the Keycloak client-credentials token endpoint KeycloakTokenProvider calls before
+    every DIZ request. Accepts any client id/secret and hands back a fixed, non-expiring-enough
+    fake token - nothing here validates it, KeycloakDizConsentService just needs any
+    'Authorization: Bearer ...' header to attach."""
+    with state_lock:
+        state["last_token_request"] = {"time": _now(), "form": dict(request.form)}
+        _record_history("token", "Keycloak-Token angefragt (Mock)")
+    return jsonify({"access_token": "mock-access-token", "token_type": "bearer", "expires_in": 300}), 200
+
+
+@app.route("/consent/clear", methods=["POST"])
+def clear_consented_patient_ids():
+    with state_lock:
+        state["consented_patient_ids"] = []
+        _record_history("consent", "Consent-Liste geleert")
+    return jsonify({"ok": True, "consented_patient_ids": []})
 
 
 @app.route("/state")

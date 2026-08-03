@@ -19,6 +19,7 @@
 
 package dev.dnpm.etl.processor.consent;
 
+import ca.uhn.fhir.parser.DataFormatException;
 import dev.dnpm.etl.processor.config.AppFhirConfig;
 import dev.dnpm.etl.processor.config.DizConsentConfigProperties;
 import dev.dnpm.etl.processor.keycloak.KeycloakTokenProvider;
@@ -51,19 +52,22 @@ public class KeycloakDizConsentService extends AbstractConsentService {
   private final RestTemplate restTemplate;
   private final DizConsentConfigProperties config;
   private final KeycloakTokenProvider tokenProvider;
+  private final DizConsentInspection dizConsentInspection;
 
   public KeycloakDizConsentService(
       DizConsentConfigProperties config,
       RetryTemplate retryTemplate,
       RestTemplate restTemplate,
       KeycloakTokenProvider tokenProvider,
-      AppFhirConfig appFhirConfig) {
+      AppFhirConfig appFhirConfig,
+      DizConsentInspection dizConsentInspection) {
     super(appFhirConfig.fhirContext(), LoggerFactory.getLogger(KeycloakDizConsentService.class));
 
     this.retryTemplate = retryTemplate;
     this.restTemplate = restTemplate;
     this.config = config;
     this.tokenProvider = tokenProvider;
+    this.dizConsentInspection = dizConsentInspection;
 
     if (null == this.config.getUri()) {
       throw new IllegalStateException("Missing DIZ consent URI configuration");
@@ -114,25 +118,44 @@ public class KeycloakDizConsentService extends AbstractConsentService {
                   this.restTemplate.exchange(
                       uri, HttpMethod.GET, new HttpEntity<>(requestHeaders), String.class));
       if (response.getStatusCode().is2xxSuccessful()) {
-        return response.getBody();
+        final var body = response.getBody();
+        dizConsentInspection.record(
+            true, personIdentifierValue, consentBundleHasEntries(body), body);
+        return body;
       } else {
         log.error(
             "DIZ consent system reached but request failed! code: '{}' response: '{}'",
             response.getStatusCode(),
             response.getBody());
+        dizConsentInspection.record(true, personIdentifierValue, false, response.getBody());
         return null;
       }
     } catch (RestClientException e) {
       log.error("Get consent status request to DIZ failed reason: '{}'", e.getMessage());
+      dizConsentInspection.record(false, personIdentifierValue, false, e.getMessage());
       return null;
     } catch (TerminatedRetryException terminatedRetryException) {
       log.error(
           "Get consent status process to DIZ has been terminated. reason: '{}'",
           terminatedRetryException.getMessage());
+      dizConsentInspection.record(
+          false, personIdentifierValue, false, terminatedRetryException.getMessage());
       return null;
     } catch (URISyntaxException e) {
       log.error("Invalid URI for DIZ consent request: '{}'", e.getMessage());
+      dizConsentInspection.record(false, personIdentifierValue, false, e.getMessage());
       return null;
+    }
+  }
+
+  private boolean consentBundleHasEntries(@Nullable String json) {
+    if (null == json) {
+      return false;
+    }
+    try {
+      return !fhirContext.newJsonParser().parseResource(Bundle.class, json).getEntry().isEmpty();
+    } catch (DataFormatException e) {
+      return false;
     }
   }
 

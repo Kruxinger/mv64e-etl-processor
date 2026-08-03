@@ -58,6 +58,11 @@
                 <div th:insert="~{configs/outputConnectionAvailable.html}" th:hx-get="@{/configs?outputConnectionAvailable}" hx-trigger="sse:output-connection-check">
                 </div>
             </section>
+
+            <section hx-ext="sse" th:sse-connect="@{/configs/events}">
+                <div th:insert="~{configs/dizConsentCheck.html}" th:hx-get="@{/configs?dizConsentCheck}" hx-trigger="sse:diz-consent-check">
+                </div>
+            </section>
         </div>
 
         <div id="security" class="tabcontent">

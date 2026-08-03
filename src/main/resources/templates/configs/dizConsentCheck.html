@@ -1,0 +1,30 @@
+<th:block th:if="${dizConsentCheck == null}">
+    <h2><span>🟦</span> DIZ Broad Consent nicht konfiguriert</h2>
+</th:block>
+<th:block th:if="${dizConsentCheck != null}">
+    <h2><span th:if="${dizConsentCheck.personIdentifierValue == null}">🟦</span><span th:if="${dizConsentCheck.personIdentifierValue != null and dizConsentCheck.available}">✅</span><span th:if="${dizConsentCheck.personIdentifierValue != null and not(dizConsentCheck.available)}">⚡</span> Letzte DIZ Consent-Abfrage</h2>
+    <div th:if="${dizConsentCheck.personIdentifierValue == null}">
+        <span>Noch keine Consent-Abfrage seit Start des ETL-Processor durchgeführt.</span>
+    </div>
+    <th:block th:if="${dizConsentCheck.personIdentifierValue != null}">
+        <div>
+            Stand: <time style="font-weight: bold" th:datetime="${#temporals.formatISO(dizConsentCheck.timestamp)}" th:text="${#temporals.formatISO(dizConsentCheck.timestamp)}"></time>
+            &nbsp;|&nbsp;
+            Patient-ID der letzten Anfrage: <code th:text="${dizConsentCheck.personIdentifierValue}"></code>
+        </div>
+        <div>
+            <span>DIZ wurde bei dieser Anfrage</span>
+            <strong th:if="${dizConsentCheck.available}" style="color: green">erreicht.</strong>
+            <strong th:if="${not(dizConsentCheck.available)}" style="color: red">nicht erreicht.</strong>
+        </div>
+        <div th:if="${dizConsentCheck.available}">
+            <span>Consent für diesen Patienten ist</span>
+            <strong th:if="${dizConsentCheck.consentFound}" style="color: green">vorhanden.</strong>
+            <strong th:if="${not(dizConsentCheck.consentFound)}" style="color: #d97706">nicht vorhanden.</strong>
+        </div>
+        <details th:if="${dizConsentCheck.rawResponse != null}">
+            <summary>Rohantwort</summary>
+            <pre th:text="${dizConsentCheck.rawResponse}" style="white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow-y: auto;"></pre>
+        </details>
+    </th:block>
+</th:block>

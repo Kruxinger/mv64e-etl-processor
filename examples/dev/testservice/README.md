@@ -7,6 +7,9 @@ ETL-Repos - garantiert schema-valide) an den ETL. Dieselbe App spielt gleichzeit
 DNPM:DIP: Sie nimmt entgegen, was der ETL nach Pseudonymisierung/Consent-Pruefung/
 Duplikaterkennung weiterleitet, und zeigt es im Frontend an.
 
+Zusaetzlich spielt sie (LMU-Fork) einen Mock fuer DIZ/Keycloak, um den
+`diz_keycloak`-Consent-Pfad zu testen, ohne dass das echte DIZ erreichbar sein muss.
+
 ## Starten
 
 **Ohne Docker** (Python 3.11+):
@@ -55,21 +58,68 @@ bleibt dann aber leer.
 
 ## Was die Buttons tun
 
-- **An ETL senden**: POSTet das Fixture (optional mit frisch generierter Patient-ID) an
-  `{ETL_BASE_URL}/mtb`.
-- **neue Patient-ID je Sendung**: standardmaessig an, damit jede Sendung als neuer Patient
-  durchlaeuft. Abschalten, um mit derselben ID zweimal zu senden und die
-  Duplikaterkennung des ETL zu testen.
+- **An ETL senden**: POSTet das Fixture (mit der eingetragenen oder automatisch erzeugten
+  Patient-ID) an `{ETL_BASE_URL}/mtb`.
+- **Patient-ID**: leer lassen fuer automatisches Verhalten (siehe naechster Punkt), oder
+  eine eigene ID eintragen - z.B. um dieselbe ID wiederholt mit/ohne Consent zu testen.
+- **neue Patient-ID je Sendung**: nur relevant, wenn das Patient-ID-Feld leer ist.
+  Standardmaessig an, damit jede Sendung als neuer Patient durchlaeuft. Abschalten, um
+  mit derselben ID zweimal zu senden und die Duplikaterkennung des ETL zu testen.
+- **Patient-ID hat Consent (Mock-DIZ)**: steuert, ob der Consent-Mock-Endpunkt
+  (`/Consent`, siehe unten) fuer die gerade verwendete Patient-ID einen aktiven Broad
+  Consent zurueckgibt oder eine leere Bundle (= kein Consent gefragt). Die
+  Markierung bleibt bestehen, bis sie fuer dieselbe ID wieder abgewaehlt wird oder
+  "Liste leeren" gedrueckt wird.
 - **Simulierte DIP-Antwort**: bestimmt, mit welchem `issues`-Report (siehe
   `ReportService.Severity` im ETL) dieser Mock-Empfaenger auf die naechste eingehende
   Weiterleitung antwortet - so laesst sich SUCCESS/WARNING/ERROR/DUPLICATION-Handling im
   ETL beobachten, ohne ein echtes DNPM:DIP zu brauchen.
 
+## DIZ/Keycloak-Consent-Mock (LMU-Fork, `app.consent.service=diz_keycloak`)
+
+Damit sich `KeycloakDizConsentService` gegen diesen Mock statt gegen das echte DIZ testen
+laesst, in der `.env` (siehe `examples/deploy/env-sample.lmu.env`):
+
+```
+APP_CONSENT_SERVICE=diz_keycloak
+APP_CONSENT_DIZ_URI=http://host.docker.internal:5000
+APP_CONSENT_DIZ_KEYCLOAKTOKENURI=http://host.docker.internal:5000/mock-keycloak/token
+APP_CONSENT_DIZ_KEYCLOAKCLIENTID=mock-client
+APP_CONSENT_DIZ_KEYCLOAKCLIENTSECRET=mock-secret
+```
+
+(Bei Docker-Compose-Betrieb statt `host.docker.internal` den Service-Namen dieses
+Containers nutzen; Client-ID/-Secret sind beliebig, der Mock-Token-Endpunkt prueft sie
+nicht.)
+
+Zwei zusaetzliche Endpunkte bedienen diesen Pfad:
+
+- `POST /mock-keycloak/token`: nimmt jeden Client-Credentials-Request an und antwortet mit
+  einem festen Fake-Access-Token - genug, damit `KeycloakTokenProvider` einen Bearer-Header
+  setzen kann, ohne dass ein echtes Keycloak involviert ist.
+- `GET /Consent?domain:identifier=...&category=...&patient.identifier=...`: mockt DIZ' FHIR-
+  Search. Liefert eine Bundle mit einem aktiven, `permit`-Consent (Code/System aus
+  `CONSENT_POLICY_CODE`/`CONSENT_POLICY_SYSTEM`, Default = MII-Broad-Consent-Defaults der
+  ETL-Config) fuer Patient-IDs, die im Frontend als "hat Consent" markiert wurden, sonst eine
+  leere Bundle.
+
+Das dritte Panel im Frontend ("DIZ Consent (Mock)") zeigt die letzte eingehende
+Consent-Abfrage (angefragte Patient-ID, ob ein Bearer-Header dabei war, ob ein Consent
+gefunden wurde) sowie die Liste aller aktuell markierten Patient-IDs. Der ETL-Processor
+selbst zeigt seinerseits in seiner eigenen Monitoring-Oberflaeche
+(`/configs`, Kachel "Letzte DIZ Consent-Abfrage") die aus seiner Sicht letzte Anfrage inkl.
+Rohantwort - so laesst sich der Rundlauf von beiden Seiten pruefen.
+
 ## Grenzen
 
-- Testet nur den REST-Ein-/Ausgang und die generelle Pipeline (Pseudonymisierung, Consent,
-  Duplikaterkennung, Weiterleitung). Die LMU-spezifischen Keycloak-gesicherten Pfade
-  (gPAS/DIZ) lassen sich damit nicht sinnvoll durchspielen, da die echten Systeme nur aus
-  dem Uniklinikum-Netz erreichbar sind - dafuer bleibt nur der Test auf dem Zielsystem.
+- Testet den REST-Ein-/Ausgang und die generelle Pipeline (Pseudonymisierung, Consent,
+  Duplikaterkennung, Weiterleitung) inklusive des `diz_keycloak`-Consent-Pfads. Der
+  Keycloak-gesicherte gPAS-Pseudonymisierungspfad laesst sich damit nicht sinnvoll
+  durchspielen, da das echte gPAS nur aus dem Uniklinikum-Netz erreichbar ist - dafuer
+  bleibt nur der Test auf dem Zielsystem.
+- Der Consent-Mock prueft weder den Inhalt des Bearer-Tokens noch die genauen Query-
+  Parameter (`domain:identifier`, `category`) - er reagiert rein auf die Patient-ID. Fuer
+  eine Verifikation des exakten Request-Formats gegen das echte DIZ reicht das nicht, dafuer
+  bleibt der Hinweis in `temp.txt`/`LMU-README.md` relevant.
 - Kein Auth-Schutz auf diesem Service selbst, kein Threading-Hardening ueber Flasks
   Dev-Server hinaus - bewusst nur fuer lokale Entwicklung, nicht fuer produktiven Einsatz.

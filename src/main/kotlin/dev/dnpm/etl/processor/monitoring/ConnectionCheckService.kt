@@ -23,6 +23,7 @@ package dev.dnpm.etl.processor.monitoring
 import dev.dnpm.etl.processor.config.GIcsConfigProperties
 import dev.dnpm.etl.processor.config.GPasConfigProperties
 import dev.dnpm.etl.processor.config.RestTargetProperties
+import dev.dnpm.etl.processor.consent.DizConsentInspection
 import jakarta.annotation.PostConstruct
 import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
@@ -77,6 +78,38 @@ sealed class ConnectionCheckResult {
       override val timestamp: Instant,
       override val lastChange: Instant,
   ) : ConnectionCheckResult()
+
+  /**
+   * Unlike the other results, this is not updated by a periodic poll but by whatever the last
+   * real Broad-Consent lookup during processing returned (see [DizConsentInspection]) - there
+   * is no cheap DIZ-side "ping" endpoint to poll, and showing the outcome of an actual
+   * per-patient check is more useful for verifying the request shape anyway.
+   *
+   * @since LMU fork
+   */
+  data class DizConsentCheckResult(
+      override val available: Boolean,
+      override val timestamp: Instant,
+      override val lastChange: Instant,
+      val personIdentifierValue: String?,
+      val consentFound: Boolean,
+      val rawResponse: String?,
+  ) : ConnectionCheckResult()
+}
+
+/**
+ * Wraps [DizConsentInspection]'s last known result as a [ConnectionCheckService], so the
+ * monitoring UI can list it alongside the other output connections in `configs.html`.
+ *
+ * @since LMU fork
+ */
+class DizConsentConnectionCheckService(
+    private val inspection: DizConsentInspection,
+) : ConnectionCheckService {
+
+  override fun connectionAvailable(): ConnectionCheckResult.DizConsentCheckResult {
+    return inspection.current()
+  }
 }
 
 class KafkaConnectionCheckService(

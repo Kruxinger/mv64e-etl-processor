@@ -29,6 +29,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import dev.dnpm.etl.processor.config.AppFhirConfig;
 import dev.dnpm.etl.processor.config.DizConsentConfigProperties;
 import dev.dnpm.etl.processor.keycloak.KeycloakTokenProvider;
+import dev.dnpm.etl.processor.monitoring.ConnectionCheckResult;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
@@ -43,6 +44,7 @@ import org.springframework.http.MediaType;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
+import reactor.core.publisher.Sinks;
 
 @ExtendWith(MockitoExtension.class)
 class KeycloakDizConsentServiceTest {
@@ -79,7 +81,9 @@ class KeycloakDizConsentServiceTest {
             RetryTemplate.builder().maxAttempts(1).build(),
             restTemplate,
             this.tokenProvider,
-            new AppFhirConfig());
+            new AppFhirConfig(),
+            new DizConsentInspection(
+                Sinks.<ConnectionCheckResult>many().multicast().onBackpressureBuffer()));
   }
 
   @Test

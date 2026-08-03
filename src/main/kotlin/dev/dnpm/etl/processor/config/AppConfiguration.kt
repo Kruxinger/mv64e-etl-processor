@@ -21,6 +21,7 @@
 package dev.dnpm.etl.processor.config
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import dev.dnpm.etl.processor.consent.DizConsentInspection
 import dev.dnpm.etl.processor.consent.GicsConsentService
 import dev.dnpm.etl.processor.consent.GicsGetBroadConsentService
 import dev.dnpm.etl.processor.consent.IConsentService
@@ -395,12 +396,29 @@ class AppConfiguration {
 
     @Conditional(DizKeycloakConsentEnabledCondition::class)
     @Bean
+    fun dizConsentInspection(
+        connectionCheckUpdateProducer: Sinks.Many<ConnectionCheckResult>,
+    ): DizConsentInspection {
+        return DizConsentInspection(connectionCheckUpdateProducer)
+    }
+
+    @Conditional(DizKeycloakConsentEnabledCondition::class)
+    @Bean
+    fun dizConsentConnectionCheckService(
+        dizConsentInspection: DizConsentInspection,
+    ): ConnectionCheckService {
+        return DizConsentConnectionCheckService(dizConsentInspection)
+    }
+
+    @Conditional(DizKeycloakConsentEnabledCondition::class)
+    @Bean
     fun dizConsentService(
         dizConsentConfigProperties: DizConsentConfigProperties,
         retryTemplate: RetryTemplate,
         restTemplate: RestTemplate,
         dizKeycloakTokenProvider: KeycloakTokenProvider,
         appFhirConfig: AppFhirConfig,
+        dizConsentInspection: DizConsentInspection,
     ): IConsentService {
         logger.info("Selected 'KeycloakDizConsentService'")
         return KeycloakDizConsentService(
@@ -409,6 +427,7 @@ class AppConfiguration {
             restTemplate,
             dizKeycloakTokenProvider,
             appFhirConfig,
+            dizConsentInspection,
         )
     }
 

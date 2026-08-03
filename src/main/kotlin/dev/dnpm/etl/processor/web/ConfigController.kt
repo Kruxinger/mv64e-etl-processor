@@ -71,12 +71,19 @@ class ConfigController(
             .firstOrNull()
             ?.connectionAvailable()
 
+    val dizConsentCheck =
+        connectionCheckServices
+            .filterIsInstance<DizConsentConnectionCheckService>()
+            .firstOrNull()
+            ?.connectionAvailable()
+
     model.addAttribute("pseudonymGenerator", pseudonymGenerator.javaClass.simpleName)
     model.addAttribute("mtbFileSender", mtbFileSender.javaClass.simpleName)
     model.addAttribute("mtbFileEndpoint", mtbFileSender.endpoint())
     model.addAttribute("outputConnectionAvailable", outputConnectionAvailable)
     model.addAttribute("gPasConnectionAvailable", gPasConnectionAvailable)
     model.addAttribute("gIcsConnectionAvailable", gIcsConnectionAvailable)
+    model.addAttribute("dizConsentCheck", dizConsentCheck)
     model.addAttribute("tokensEnabled", tokenService != null)
     if (tokenService != null) {
       model.addAttribute("tokens", tokenService.findAll())
@@ -157,6 +164,27 @@ class ConfigController(
     return "configs/gIcsConnectionAvailable"
   }
 
+  @GetMapping(params = ["dizConsentCheck"])
+  fun dizConsentCheck(model: Model): String {
+    val dizConsentCheck =
+        connectionCheckServices
+            .filterIsInstance<DizConsentConnectionCheckService>()
+            .firstOrNull()
+            ?.connectionAvailable()
+
+    model.addAttribute("mtbFileSender", mtbFileSender.javaClass.simpleName)
+    model.addAttribute("mtbFileEndpoint", mtbFileSender.endpoint())
+    model.addAttribute("dizConsentCheck", dizConsentCheck)
+    if (tokenService != null) {
+      model.addAttribute("tokensEnabled", true)
+      model.addAttribute("tokens", tokenService.findAll())
+    } else {
+      model.addAttribute("tokens", listOf<Token>())
+    }
+
+    return "configs/dizConsentCheck"
+  }
+
   @PostMapping(path = ["tokens"])
   fun addToken(@ModelAttribute("name") name: String, model: Model): String {
     if (tokenService == null) {
@@ -232,6 +260,7 @@ class ConfigController(
             is ConnectionCheckResult.RestConnectionCheckResult -> "output-connection-check"
             is ConnectionCheckResult.GPasConnectionCheckResult -> "gpas-connection-check"
             is ConnectionCheckResult.GIcsConnectionCheckResult -> "gics-connection-check"
+            is ConnectionCheckResult.DizConsentCheckResult -> "diz-consent-check"
           }
 
       ServerSentEvent.builder<Any>().event(event).id("none").data(it).build()
