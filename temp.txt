@@ -72,6 +72,28 @@ Das war eine bewusste Entscheidung, weil das der Standard ist, den ConsentProces
 erwartet - aber ungetestet gegen das echte DIZ, weil das von hier aus nicht erreichbar
 war.
 
+GELOEST: gPAS-Pseudonymisierung war ebenfalls nicht verifiziert
+-------------------------------------------------------------------------------
+
+Analog zu DIZ: ein Python-POC fuer die zweistufige gPAS-Pseudonymisierung zeigte zwei
+falsche Annahmen im bisherigen Code:
+1. Keycloak braucht auch hier den password-Grant (Username/Passwort zusaetzlich zu
+   Client-ID/-Secret), nicht client_credentials. GpasKeycloakConfigProperties hat jetzt
+   username/password-Felder (bewusst OHNE "keycloak"-Praefix im Feldnamen, weil die Klasse
+   schon unter dem Prefix app.pseudonymize.gpas.keycloak gebunden ist - anders als bei DIZ,
+   das flach unter app.consent.diz liegt und daher keycloakUsername/-Password heisst).
+2. Die zwei gPAS-SOAP-Calls sind NICHT beide getOrCreatePseudonymFor (wie urspruenglich
+   angenommen), sondern getPseudonymFor (nur Lookup, kein Anlegen) fuer 'arbeitsnummer',
+   dann createPseudonymFor (legt immer neu an) fuer 'vorgangsnummer'. Beide Operationen
+   waren im GpasSoapService-Interface noch gar nicht vorhanden, jetzt ergaenzt.
+
+Weiterhin unklar: ob getPseudonymFor fuer 'arbeitsnummer' wirklich fehlschlaegt, wenn die
+Arbeitsnummer fuer einen Fall noch nie angelegt wurde (das POC hat vermutlich nur mit einer
+bereits bekannten FallnummerMV getestet). Falls das in der Praxis mit "nicht gefunden"-
+Fehlern fuer neue Faelle auffaellt: in KeycloakGpasPseudonymGenerator.generate() den ersten
+Call von getPseudonymFor auf getOrCreatePseudonymFor umstellen (Operation existiert im
+Interface bereits, ist upstream schon vorhanden).
+
 Bekannte, bereits geloeste Stolpersteine (nur falls sie erneut auftauchen)
 ---------------------------------------------------------------------------
 

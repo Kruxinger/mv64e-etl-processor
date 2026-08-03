@@ -38,6 +38,34 @@ interface GpasSoapService {
         @WebParam(name = "domainName") domainName: String,
     ): String
 
+    /**
+     * Looks up an existing pseudonym only - unlike [getOrCreatePseudonymFor], does not create
+     * one if none exists yet. Used by the LMU two-step chain's first ('arbeitsnummer') step,
+     * verified against the real gPAS system.
+     *
+     * @since LMU fork
+     */
+    @WebMethod(operationName = "getPseudonymFor")
+    @WebResult(name = "psn")
+    fun getPseudonymFor(
+        @WebParam(name = "value") value: String,
+        @WebParam(name = "domainName") domainName: String,
+    ): String
+
+    /**
+     * Creates a single new pseudonym - unlike [createPseudonymsFor], no bulk `number` parameter.
+     * Used by the LMU two-step chain's second ('vorgangsnummer') step, verified against the real
+     * gPAS system.
+     *
+     * @since LMU fork
+     */
+    @WebMethod(operationName = "createPseudonymFor")
+    @WebResult(name = "psn")
+    fun createPseudonymFor(
+        @WebParam(name = "value") value: String,
+        @WebParam(name = "domainName") domainName: String,
+    ): String
+
     @WebMethod(operationName = "createPseudonymsFor")
     @WebResult(name = "psn")
     @XmlElementWrapper(name = "return")

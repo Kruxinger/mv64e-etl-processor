@@ -29,6 +29,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties
  *
  * The gPAS SOAP endpoint itself is configured via [GPasConfigProperties] (uri/soap-endpoint),
  * only the auth mechanism and the two domain names are specific to this generator.
+ *
+ * Auth verified against the real system: like DIZ's Keycloak
+ * ([dev.dnpm.etl.processor.config.DizConsentConfigProperties]), gPAS's Keycloak realm requires
+ * the resource-owner-password grant (client id/secret *and* a service account's
+ * [username]/[password]), not plain client-credentials. Named without a "keycloak" prefix
+ * (unlike Diz's flat `keycloakUsername`/`keycloakPassword`) since this class is already bound
+ * under the `...gpas.keycloak` prefix - repeating it in the field name would double up in the
+ * resulting env var name.
  */
 @ConfigurationProperties(GpasKeycloakConfigProperties.NAME)
 data class GpasKeycloakConfigProperties(
@@ -39,6 +47,10 @@ data class GpasKeycloakConfigProperties(
     val tokenUri: String? = null,
     val clientId: String? = null,
     val clientSecret: String? = null,
+    /** Service-account username for gPAS's resource-owner-password Keycloak grant */
+    val username: String? = null,
+    /** Service-account password for gPAS's resource-owner-password Keycloak grant */
+    val password: String? = null,
 ) {
     companion object {
         const val NAME = "app.pseudonymize.gpas.keycloak"

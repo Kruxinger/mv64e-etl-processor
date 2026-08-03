@@ -55,9 +55,9 @@ class KeycloakGpasPseudonymGeneratorTest {
     fun shouldChainArbeitsnummerAndVorgangsnummer(
         @Mock gpasSoapService: GpasSoapService,
     ) {
-        whenever(gpasSoapService.getOrCreatePseudonymFor("00123", "arbeitsnummer"))
+        whenever(gpasSoapService.getPseudonymFor("00123", "arbeitsnummer"))
             .thenReturn("ARB-1")
-        whenever(gpasSoapService.getOrCreatePseudonymFor("ARB-1", "vorgangsnummer"))
+        whenever(gpasSoapService.createPseudonymFor("ARB-1", "vorgangsnummer"))
             .thenReturn("VOR-1")
 
         val generator =
@@ -71,17 +71,17 @@ class KeycloakGpasPseudonymGeneratorTest {
         val result = generator.generate("123")
 
         assertThat(result).isEqualTo("VOR-1")
-        verify(gpasSoapService).getOrCreatePseudonymFor("00123", "arbeitsnummer")
-        verify(gpasSoapService).getOrCreatePseudonymFor("ARB-1", "vorgangsnummer")
+        verify(gpasSoapService).getPseudonymFor("00123", "arbeitsnummer")
+        verify(gpasSoapService).createPseudonymFor("ARB-1", "vorgangsnummer")
     }
 
     @Test
     fun shouldNotDoublePrefixCaseIdThatAlreadyStartsWithPrefix(
         @Mock gpasSoapService: GpasSoapService,
     ) {
-        whenever(gpasSoapService.getOrCreatePseudonymFor("00123", "arbeitsnummer"))
+        whenever(gpasSoapService.getPseudonymFor("00123", "arbeitsnummer"))
             .thenReturn("ARB-1")
-        whenever(gpasSoapService.getOrCreatePseudonymFor("ARB-1", "vorgangsnummer"))
+        whenever(gpasSoapService.createPseudonymFor("ARB-1", "vorgangsnummer"))
             .thenReturn("VOR-1")
 
         val generator =
@@ -94,7 +94,7 @@ class KeycloakGpasPseudonymGeneratorTest {
 
         generator.generate("00123")
 
-        verify(gpasSoapService).getOrCreatePseudonymFor("00123", "arbeitsnummer")
+        verify(gpasSoapService).getPseudonymFor("00123", "arbeitsnummer")
     }
 
     @Test

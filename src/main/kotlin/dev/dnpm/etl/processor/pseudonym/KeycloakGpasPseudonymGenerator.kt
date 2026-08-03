@@ -30,9 +30,15 @@ import org.springframework.retry.support.RetryTemplate
  * Unlike upstream's [GpasSoapPseudonymGenerator] (single gPAS domain call per pseudonym),
  * this generator chains two gPAS domains to arrive at the final PatID pseudonym:
  *
- * 1. FallnummerMV -> gPAS domain 'arbeitsnummer' -> Arbeitsnummer (stable per patient)
- * 2. Arbeitsnummer -> gPAS domain 'vorgangsnummer' -> Vorgangsnummer (final pseudonym, sequential
- *    per Arbeitsnummer)
+ * 1. FallnummerMV -> gPAS domain 'arbeitsnummer' -> Arbeitsnummer (stable per patient) via
+ *    [GpasSoapService.getPseudonymFor] - looks up only, does *not* create. If the Arbeitsnummer
+ *    was never registered for this case elsewhere, this fails loudly rather than silently
+ *    creating one - verified against a working reference implementation; if that assumption
+ *    turns out wrong in practice (i.e. Arbeitsnummer *should* be auto-created here), switch
+ *    this call to [GpasSoapService.getOrCreatePseudonymFor] instead.
+ * 2. Arbeitsnummer -> gPAS domain 'vorgangsnummer' -> Vorgangsnummer (final pseudonym) via
+ *    [GpasSoapService.createPseudonymFor] - creates a fresh one every time, i.e. every
+ *    processing run gets its own Vorgangsnummer rather than reusing one across resubmissions.
  *
  * The incoming id is expected to be purely numeric (the FallnummerMV/case id as delivered by
  * Onkostar); this is *not* a mandatory field in Onkostar's "DNPM Klinik/Anamnese" form, so an
@@ -51,9 +57,9 @@ class KeycloakGpasPseudonymGenerator(
         retryTemplate.execute<String, Exception> {
             val caseId = requireNumericCaseId(id)
             val arbeitsnummer =
-                gpasSoapService.getOrCreatePseudonymFor(caseId, keycloakCfg.arbeitsnummerDomain)
+                gpasSoapService.getPseudonymFor(caseId, keycloakCfg.arbeitsnummerDomain)
             val vorgangsnummer =
-                gpasSoapService.getOrCreatePseudonymFor(
+                gpasSoapService.createPseudonymFor(
                     arbeitsnummer,
                     keycloakCfg.vorgangsnummerDomain,
                 )

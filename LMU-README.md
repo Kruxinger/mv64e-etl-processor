@@ -22,6 +22,18 @@ FallnummerMV → gPAS-Domain `arbeitsnummer` → Arbeitsnummer → gPAS-Domain `
 Vorgangsnummer (= finales PatID-Pseudonym). Pauls Original macht nur einen direkten Call pro
 Pseudonym-Art. Auth per Keycloak-Bearer-Token (SOAP-Header), nicht Basic-Auth.
 
+**Gegen das echte System verifiziert** (per Python-Referenzimplementierung, analog zum
+DIZ-Consent-Vorgehen): die zwei gPAS-SOAP-Operationen sind **nicht** dieselbe
+(`getOrCreatePseudonymFor` für beide Schritte), sondern zwei verschiedene:
+`getPseudonymFor` (nur Lookup, erzeugt nichts) für den `arbeitsnummer`-Schritt, danach
+`createPseudonymFor` (erzeugt immer neu) für den `vorgangsnummer`-Schritt. D.h. jeder
+Verarbeitungslauf bekommt eine frische Vorgangsnummer, während die Arbeitsnummer bereits
+existieren muss (schlägt fehl, falls nicht - siehe Javadoc in
+`KeycloakGpasPseudonymGenerator`, falls sich das als falsche Annahme herausstellt). Auch
+hier: Keycloak-**Password-Grant**, nicht Client-Credentials - `GpasKeycloakConfigProperties`
+braucht daher zusätzlich `username`/`password` eines Service-Users (Client-ID/-Secret allein
+reichen nicht).
+
 Aktivieren: `APP_PSEUDONYMIZE_GENERATOR=GPAS_KEYCLOAK` (statt `GPAS`/`BUILDIN`).
 
 ### 2. Consent: Broad Consent von DIZ statt gICS direkt

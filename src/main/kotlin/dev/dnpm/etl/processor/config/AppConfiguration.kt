@@ -174,6 +174,10 @@ class AppConfiguration {
                 tokenUri = requireNotNull(gpasKeycloakConfigProperties.tokenUri),
                 clientId = requireNotNull(gpasKeycloakConfigProperties.clientId),
                 clientSecret = requireNotNull(gpasKeycloakConfigProperties.clientSecret),
+                // gPAS's realm needs the resource-owner-password grant too, verified against
+                // the real system - see GpasKeycloakConfigProperties KDoc.
+                username = gpasKeycloakConfigProperties.username,
+                password = gpasKeycloakConfigProperties.password,
             ),
             restTemplate,
         )

@@ -51,6 +51,8 @@ class GpasKeycloakConfigPropertiesEnvBindingTest {
                 "APP_PSEUDONYMIZE_GPAS_KEYCLOAK_TOKENURI" to "http://kc/token",
                 "APP_PSEUDONYMIZE_GPAS_KEYCLOAK_CLIENTID" to "etl-processor",
                 "APP_PSEUDONYMIZE_GPAS_KEYCLOAK_CLIENTSECRET" to "secret",
+                "APP_PSEUDONYMIZE_GPAS_KEYCLOAK_USERNAME" to "sys-ccc-ldap",
+                "APP_PSEUDONYMIZE_GPAS_KEYCLOAK_PASSWORD" to "keycloak-password",
                 "APP_PSEUDONYMIZE_GPAS_SOAP_ENDPOINT" to "http://gpas/soap",
             )
 
@@ -61,6 +63,8 @@ class GpasKeycloakConfigPropertiesEnvBindingTest {
         assertThat(keycloakCfg.tokenUri).isEqualTo("http://kc/token")
         assertThat(keycloakCfg.clientId).isEqualTo("etl-processor")
         assertThat(keycloakCfg.clientSecret).isEqualTo("secret")
+        assertThat(keycloakCfg.username).isEqualTo("sys-ccc-ldap")
+        assertThat(keycloakCfg.password).isEqualTo("keycloak-password")
 
         val gpasCfg = binder.bind("app.pseudonymize.gpas", GPasConfigProperties::class.java).get()
         assertThat(gpasCfg.soapEndpoint).isEqualTo("http://gpas/soap")
