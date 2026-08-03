@@ -118,34 +118,45 @@ def index():
 
 @app.route("/send", methods=["POST"])
 def send():
+    """Patient-ID (patient.id im JSON) und Fall-ID (X-Case-Id-Header) sind zwei bewusst
+    getrennte, unterschiedliche IDs: die Fall-ID steuert die DIZ-Consent-Abfrage, die
+    Patient-ID ist die (spaeter fuer die gPAS-Pseudonymisierung relevante) ID im Mtb-Body.
+    Bleibt die Fall-ID leer, wird kein X-Case-Id-Header gesendet - der ETL faellt dann
+    intern auf patient.id zurueck (siehe ConsentProcessor)."""
     body = request.json if request.is_json else {}
     randomize = body.get("randomize_patient_id", True)
     explicit_patient_id = (body.get("patient_id") or "").strip() or None
+    case_id = (body.get("case_id") or "").strip() or None
     has_consent = bool(body.get("has_consent", False))
 
     payload, patient_id = _build_payload(randomize, explicit_patient_id)
+    # the id DIZ's Consent endpoint actually gets queried with - mirrors ConsentProcessor's
+    # own case_id-else-patient_id fallback, so "hat Consent" marks the right id either way
+    consent_query_id = case_id or patient_id
 
     with state_lock:
-        already_consented = patient_id in state["consented_patient_ids"]
+        already_consented = consent_query_id in state["consented_patient_ids"]
         if has_consent and not already_consented:
-            state["consented_patient_ids"].append(patient_id)
+            state["consented_patient_ids"].append(consent_query_id)
         elif not has_consent and already_consented:
-            state["consented_patient_ids"].remove(patient_id)
+            state["consented_patient_ids"].remove(consent_query_id)
 
     url = f"{ETL_BASE_URL}/mtb"
     log.info(
-        "Sende MTB-Datei fuer Patient %s an %s (Mock-Consent: %s)", patient_id, url, has_consent
+        "Sende MTB-Datei fuer Patient-ID %s, Fall-ID %s an %s (Mock-Consent fuer %s: %s)",
+        patient_id, case_id or "(keine, Fallback auf Patient-ID)", consent_query_id, has_consent, url,
     )
+
+    headers = {"Content-Type": "application/json"}
+    if case_id:
+        headers["X-Case-Id"] = case_id
 
     try:
         response = requests.post(
             url,
             json=payload,
             auth=(ETL_USERNAME, ETL_PASSWORD),
-            # X-Case-Id: the ETL's DIZ Broad-Consent lookup is keyed by this (local case/Fallnummer
-            # from Onkostar, e.g. "X-Case-Id" header), not by the "patient" JSON field - send the
-            # same id here so the mock's /Consent endpoint sees a matching id either way.
-            headers={"Content-Type": "application/json", "X-Case-Id": patient_id},
+            headers=headers,
             timeout=30,
         )
         result = {
@@ -153,6 +164,7 @@ def send():
             "status_code": response.status_code,
             "body": response.text,
             "patient_id": patient_id,
+            "case_id": case_id,
             "has_consent": has_consent,
             "time": _now(),
         }
@@ -162,6 +174,7 @@ def send():
             "ok": False,
             "error": str(e),
             "patient_id": patient_id,
+            "case_id": case_id,
             "has_consent": has_consent,
             "time": _now(),
         }
@@ -170,8 +183,8 @@ def send():
         state["last_sent"] = result
         _record_history(
             "sent",
-            f"Patient {patient_id[:8]}... (Consent: {'ja' if has_consent else 'nein'}) "
-            f"-> HTTP {result.get('status_code', 'ERR')}",
+            f"Patient-ID {patient_id[:8]}..., Fall-ID {case_id or '-'} "
+            f"(Consent: {'ja' if has_consent else 'nein'}) -> HTTP {result.get('status_code', 'ERR')}",
         )
 
     return jsonify(result)

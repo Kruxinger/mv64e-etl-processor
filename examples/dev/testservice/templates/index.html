@@ -103,17 +103,21 @@
 
   <div class="controls">
     <button id="sendBtn">An ETL senden</button>
-    <label>
-      Patient-/Fall-ID:
-      <input type="text" id="patientIdInput" placeholder="leer = automatisch" size="20" title="Wird sowohl als patient.id im JSON als auch als X-Case-Id-Header gesendet - die DIZ-Consent-Abfrage nutzt den Header, nicht patient.id.">
+    <label title="patient.id im Mtb-JSON - fuer die (spaeter) gPAS-Pseudonymisierung relevant, NICHT fuer den Consent-Check">
+      Patient-ID:
+      <input type="text" id="patientIdInput" placeholder="leer = automatisch" size="18">
     </label>
-    <label title="Nur relevant, wenn keine ID oben eingetragen ist">
+    <label title="Nur relevant, wenn keine Patient-ID oben eingetragen ist">
       <input type="checkbox" id="randomizeId" checked>
-      neue ID je Sendung (sonst: Duplikat-Erkennung testen)
+      neue Patient-ID je Sendung (sonst: Duplikat-Erkennung testen)
     </label>
-    <label title="Steuert die Antwort des Mock-/Consent-Endpunkts (/Consent) fuer diese ID">
+    <label title="Wird als X-Case-Id-Header gesendet - DAS ist die ID, mit der die DIZ-Consent-Abfrage laeuft. Leer = kein Header, ETL faellt auf Patient-ID zurueck.">
+      Fall-ID (Consent):
+      <input type="text" id="caseIdInput" placeholder="leer = Fallback auf Patient-ID" size="20">
+    </label>
+    <label title="Steuert die Antwort des Mock-Consent-Endpunkts (/Consent) fuer die tatsaechlich abgefragte ID (Fall-ID, oder Patient-ID falls Fall-ID leer ist)">
       <input type="checkbox" id="hasConsent">
-      ID hat Consent (Mock-DIZ)
+      Consent vorhanden (Mock-DIZ)
     </label>
     <label>
       Simulierte DIP-Antwort:
@@ -172,19 +176,20 @@
     function renderSent(sent) {
       const el = document.getElementById('sentPanel');
       if (!sent) { el.innerHTML = '<p class="empty">Noch nichts gesendet.</p>'; return; }
+      const idLine = `Patient-ID: <code>${escapeHtml(sent.patient_id)}</code>,
+          Fall-ID: <code>${sent.case_id ? escapeHtml(sent.case_id) : '(leer, Fallback auf Patient-ID)'}</code>,
+          Consent im Mock: ${sent.has_consent ? 'ja' : 'nein'}`;
       if (!sent.ok) {
         el.innerHTML = `
           <div class="meta">${sent.time}</div>
-          <div class="meta">Patient-/Fall-ID: <code>${escapeHtml(sent.patient_id)}</code>,
-            Consent im Mock: ${sent.has_consent ? 'ja' : 'nein'}</div>
+          <div class="meta">${idLine}</div>
           <span class="badge err">Verbindungsfehler</span>
           <pre>${escapeHtml(sent.error)}</pre>`;
         return;
       }
       el.innerHTML = `
         <div class="meta">${sent.time}</div>
-        <div class="meta">Patient-ID: <code>${escapeHtml(sent.patient_id)}</code>,
-          Consent im Mock: ${sent.has_consent ? 'ja' : 'nein'}</div>
+        <div class="meta">${idLine}</div>
         ${statusBadge(sent.status_code)}
         <pre>${escapeHtml(sent.body || '(leerer Body - normal bei 202 Accepted)')}</pre>`;
     }
@@ -255,6 +260,7 @@
       try {
         const randomize = document.getElementById('randomizeId').checked;
         const patientId = document.getElementById('patientIdInput').value.trim();
+        const caseId = document.getElementById('caseIdInput').value.trim();
         const hasConsent = document.getElementById('hasConsent').checked;
         await fetch('/send', {
           method: 'POST',
@@ -262,6 +268,7 @@
           body: JSON.stringify({
             randomize_patient_id: randomize,
             patient_id: patientId,
+            case_id: caseId,
             has_consent: hasConsent,
           }),
         });
