@@ -31,12 +31,21 @@ Neu: [`DizConsentConfigProperties`](src/main/kotlin/dev/dnpm/etl/processor/confi
 
 **Request-Format gegen das echte System verifiziert (nicht mehr nur Annahme):** Anders als
 ursprünglich angenommen ist das **kein** FHIR-Search wie Pauls `GicsGetBroadConsentService`,
-sondern ein simples `GET [uri]<PatID>` mit direkt angehängter Patient-ID (kein
+sondern ein simples `GET [uri]<ID>` mit direkt angehängter ID (kein
 `domain:identifier`/`category`/`patient.identifier`-Query). `APP_CONSENT_DIZ_URI` muss daher
 bereits alles bis inkl. Query-Präfix enthalten, z.B. `.../fhir/Consent?patient=`. Auth per
 Keycloak-Bearer, aber **Password-Grant** (Client-ID/-Secret **und** Username/Passwort eines
 Service-Users), nicht Client-Credentials. Der MVConsent kommt weiterhin unverändert eingebettet
 im Mtb-JSON von Onkostar - daran wurde nichts geändert.
+
+**Wichtig, ebenfalls verifiziert:** DIZ' Broad Consent ist über die **Fall-ID** (lokale
+Fallnummer aus Onkostar) verknüpft, nicht über `patient.id` im Mtb-JSON (das ist die
+FallnummerMV, s.u. - eine andere ID). Die Fall-ID kommt separat über den `X-Case-Id`-Header
+(siehe `MtbFileRestController`/`CaseId` in `types.kt`) und wird nur zur DIZ-Consent-Abfrage
+verwendet, nirgendwo sonst im Payload. `ConsentProcessor.consentGatedCheckAndTryEmbedding`
+nutzt sie, wenn der Header gesetzt ist, sonst fällt sie zurück auf `patient.id` (z.B. für
+Kafka-Requests, die den Header nicht kennen, oder für Pauls gics/gics_get_bc, die weiterhin
+patientenbezogen abfragen).
 
 Offen: ob die Response selbst ein Bundle oder eine einzelne Consent-Resource ist, war beim
 Schreiben dieses Abschnitts noch nicht verifiziert - `KeycloakDizConsentService` parst daher

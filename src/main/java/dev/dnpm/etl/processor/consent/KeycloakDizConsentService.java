@@ -42,13 +42,19 @@ import org.springframework.web.client.RestTemplate;
  * Requests Broad Consent from DIZ (LMU), secured via Keycloak (resource-owner-password grant,
  * see {@link KeycloakTokenProvider}).
  *
- * <p>Request shape verified against the real system: a plain {@code GET [uri]<patientId>} with
- * the patient id appended directly - <b>not</b> a FHIR search with separate query params like
+ * <p>Request shape verified against the real system: a plain {@code GET [uri]<identifier>} with
+ * the identifier appended directly - <b>not</b> a FHIR search with separate query params like
  * upstream's {@link GicsGetBroadConsentService}. {@link DizConsentConfigProperties#getUri()} is
  * therefore expected to already include everything up to the insertion point, e.g. {@code
  * https://bc.diz.med.uni-muenchen.de/fhir/Consent?patient=}. The response is parsed leniently as
  * either a Bundle or a bare Consent resource, since which of the two DIZ actually returns wasn't
  * confirmed at the time of writing.
+ *
+ * <p>Despite the {@code personIdentifierValue} parameter naming (kept consistent with {@link
+ * IConsentService}, shared with upstream's patient-keyed implementations), DIZ's Broad Consent is
+ * actually keyed by case/Fall, not by patient - callers are expected to pass the case id (see
+ * {@link dev.dnpm.etl.processor.services.ConsentProcessor#consentGatedCheckAndTryEmbedding}, which
+ * substitutes {@code CaseId} from the {@code X-Case-Id} request header for this parameter).
  *
  * @since LMU fork
  */

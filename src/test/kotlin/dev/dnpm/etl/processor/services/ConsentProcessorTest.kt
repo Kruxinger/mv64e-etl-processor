@@ -21,6 +21,7 @@
 package dev.dnpm.etl.processor.services
 
 import ca.uhn.fhir.context.FhirContext
+import dev.dnpm.etl.processor.CaseId
 import dev.dnpm.etl.processor.config.AppConfigProperties
 import dev.dnpm.etl.processor.config.GIcsConfigProperties
 import dev.dnpm.etl.processor.config.JacksonConfig
@@ -110,6 +111,29 @@ class ConsentProcessorTest {
 
     assertThat(checkResult).isTrue
     assertThat(inputMtb.metadata.researchConsents).isNotEmpty
+  }
+
+  @Test
+  fun shouldUseCaseIdInsteadOfPatientIdWhenPresent() {
+    // LMU fork: DIZ's Broad Consent is keyed by case/Fall (X-Case-Id header), not by patient -
+    // consentGatedCheckAndTryEmbedding must query with that id when given one, not patient.id.
+    doAnswer { getDummyBroadConsentBundle() }
+        .whenever(gicsConsentService)
+        .getConsent(any(), any(), eq(ConsentDomain.BROAD_CONSENT))
+
+    doAnswer { Bundle() }
+        .whenever(gicsConsentService)
+        .getConsent(any(), any(), eq(ConsentDomain.MODELLVORHABEN_64E))
+
+    val inputMtb =
+        Mtb.builder()
+            .patient(Patient.builder().id("patient-id-should-not-be-used").build())
+            .build()
+
+    consentProcessor.consentGatedCheckAndTryEmbedding(inputMtb, CaseId("case-id-should-be-used"))
+
+    verify(gicsConsentService, times(1))
+        .getConsent(eq("case-id-should-be-used"), any(), eq(ConsentDomain.BROAD_CONSENT))
   }
 
   @Test

@@ -104,16 +104,16 @@
   <div class="controls">
     <button id="sendBtn">An ETL senden</button>
     <label>
-      Patient-ID:
-      <input type="text" id="patientIdInput" placeholder="leer = automatisch" size="20">
+      Patient-/Fall-ID:
+      <input type="text" id="patientIdInput" placeholder="leer = automatisch" size="20" title="Wird sowohl als patient.id im JSON als auch als X-Case-Id-Header gesendet - die DIZ-Consent-Abfrage nutzt den Header, nicht patient.id.">
     </label>
-    <label title="Nur relevant, wenn keine Patient-ID oben eingetragen ist">
+    <label title="Nur relevant, wenn keine ID oben eingetragen ist">
       <input type="checkbox" id="randomizeId" checked>
-      neue Patient-ID je Sendung (sonst: Duplikat-Erkennung testen)
+      neue ID je Sendung (sonst: Duplikat-Erkennung testen)
     </label>
-    <label title="Steuert die Antwort des Mock-/Consent-Endpunkts (/Consent) fuer diese Patient-ID">
+    <label title="Steuert die Antwort des Mock-/Consent-Endpunkts (/Consent) fuer diese ID">
       <input type="checkbox" id="hasConsent">
-      Patient-ID hat Consent (Mock-DIZ)
+      ID hat Consent (Mock-DIZ)
     </label>
     <label>
       Simulierte DIP-Antwort:
@@ -175,7 +175,7 @@
       if (!sent.ok) {
         el.innerHTML = `
           <div class="meta">${sent.time}</div>
-          <div class="meta">Patient-ID: <code>${escapeHtml(sent.patient_id)}</code>,
+          <div class="meta">Patient-/Fall-ID: <code>${escapeHtml(sent.patient_id)}</code>,
             Consent im Mock: ${sent.has_consent ? 'ja' : 'nein'}</div>
           <span class="badge err">Verbindungsfehler</span>
           <pre>${escapeHtml(sent.error)}</pre>`;
@@ -207,7 +207,7 @@
       if (!check) { el.innerHTML = '<p class="empty">Noch keine Consent-Abfrage vom ETL erhalten.</p>'; return; }
       el.innerHTML = `
         <div class="meta">${check.time}</div>
-        <div class="meta">Angefragte Patient-ID: <code>${escapeHtml(check.patient_id)}</code></div>
+        <div class="meta">Angefragte ID (X-Case-Id): <code>${escapeHtml(check.patient_id)}</code></div>
         <div class="meta">Auth-Header (Bearer): ${check.had_auth_header ? 'ja' : 'nein'}</div>
         <div class="meta">Consent gefunden:
           ${check.consent_found

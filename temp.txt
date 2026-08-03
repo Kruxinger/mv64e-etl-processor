@@ -48,11 +48,20 @@ nicht client_credentials - auch das war vorher nicht bekannt. Beides jetzt in
 KeycloakDizConsentService/KeycloakTokenProvider/DizConsentConfigProperties angepasst,
 siehe deren Javadoc/KDoc fuer Details.
 
-Weiterhin offen: ob die Response ein FHIR-Bundle oder eine einzelne Consent-Resource ist,
-war nicht aus dem POC ersichtlich - der Code parst defensiv beides
-(KeycloakDizConsentService#parseAsBundle). Sobald eine echte Response vorliegt: pruefen,
-ob die Policy-Codes darin zu dem passen, was ConsentProcessor erwartet
-(APP_CONSENT_DIZ_BROADCONSENTPOLICYCODE/-SYSTEM in DizConsentConfigProperties).
+Update 2: erste echte Response gegen DIZ erhalten und geprueft - ist ein FHIR-Bundle
+(type: searchset), Policy-Codes passen exakt zu den Defaults in DizConsentConfigProperties
+(z.B. MDAT_erheben = 2.16.840.1.113883.3.1937.777.24.5.3.6). Der urspruengliche
+Fallback auf eine einzelne Consent-Resource in parseAsBundle ist also vermutlich nie
+noetig, schadet aber nicht und bleibt drin.
+
+Update 3, WICHTIG - falsche ID verwendet: der erste erfolgreiche Test lief mit
+mtbFile.patient.id (FallnummerMV) als Abfrage-ID gegen DIZ - das war falsch, hat nur
+zufaellig funktioniert. DIZ' Broad Consent ist tatsaechlich ueber die Fall-ID verknuepft,
+die separat per "X-Case-Id"-Header mitgeschickt wird (siehe Commit "feat: accept case ID
+via X-Case-Id header for correlation", CaseId in types.kt). ConsentProcessor nutzt jetzt
+caseId statt patient.id, wenn der Header gesetzt ist (Fallback auf patient.id fuer
+Kafka-Requests bzw. wenn kein Header mitkommt). testservice/app.py sendet den Header
+jetzt ebenfalls (mit demselben Wert wie das Patient-ID-Testfeld).
 
 Urspruenglicher Text (zur Nachvollziehbarkeit, nicht mehr aktuell):
 KeycloakDizConsentService wurde nach dem Muster der bestehenden GicsGetBroadConsentService

@@ -22,11 +22,13 @@ package dev.dnpm.etl.processor.services
 
 import ca.uhn.fhir.context.FhirContext
 import com.fasterxml.jackson.core.JsonProcessingException
+import dev.dnpm.etl.processor.CaseId
 import dev.dnpm.etl.processor.config.AppConfigProperties
 import dev.dnpm.etl.processor.config.GIcsConfigProperties
 import dev.dnpm.etl.processor.consent.ConsentDomain
 import dev.dnpm.etl.processor.consent.IConsentService
 import dev.dnpm.etl.processor.consent.MtbFileConsentService
+import dev.dnpm.etl.processor.emptyCaseId
 import dev.dnpm.etl.processor.pseudonym.ensureMetaDataIsInitialized
 import dev.pcvolkmer.mv64e.mtb.*
 import org.apache.commons.lang3.NotImplementedException
@@ -63,9 +65,15 @@ class ConsentProcessor(
    * * ELSE <c>false</c> is returned.
    *
    * @param mtbFile File v2 (will be enriched with consent data)
+   * @param caseId LMU fork: local case/Fallnummer from the X-Case-Id header (see
+   *   [dev.dnpm.etl.processor.input.MtbFileRestController]). When present, this - not
+   *   `mtbFile.patient.id` - is the identifier consent is queried for, since DIZ's Broad
+   *   Consent is keyed by case/Fall, not by patient. Falls back to `mtbFile.patient.id`
+   *   when absent (Kafka-sourced requests, or deployments that never send the header) to
+   *   keep upstream's gics/gics_get_bc behaviour unchanged.
    * @return true if consent is given
    */
-  fun consentGatedCheckAndTryEmbedding(mtbFile: Mtb): Boolean {
+  fun consentGatedCheckAndTryEmbedding(mtbFile: Mtb, caseId: CaseId = emptyCaseId()): Boolean {
     mtbFile.ensureMetaDataIsInitialized()
 
     if (consentService is MtbFileConsentService) {
@@ -73,7 +81,7 @@ class ConsentProcessor(
       return true
     }
 
-    val personIdentifierValue = mtbFile.patient.id
+    val personIdentifierValue = caseId.value.ifBlank { mtbFile.patient.id }
     val requestDate = Date.from(Instant.now(Clock.systemUTC()))
 
     // 1. Broad consent Entry exists?

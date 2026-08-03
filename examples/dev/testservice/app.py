@@ -142,7 +142,10 @@ def send():
             url,
             json=payload,
             auth=(ETL_USERNAME, ETL_PASSWORD),
-            headers={"Content-Type": "application/json"},
+            # X-Case-Id: the ETL's DIZ Broad-Consent lookup is keyed by this (local case/Fallnummer
+            # from Onkostar, e.g. "X-Case-Id" header), not by the "patient" JSON field - send the
+            # same id here so the mock's /Consent endpoint sees a matching id either way.
+            headers={"Content-Type": "application/json", "X-Case-Id": patient_id},
             timeout=30,
         )
         result = {

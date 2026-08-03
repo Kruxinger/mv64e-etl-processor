@@ -72,7 +72,7 @@ class RequestProcessor(
 
     fun processMtbFile(mtbFile: Mtb, requestId: RequestId, caseId: CaseId): Boolean {
         val isConsentOk =
-            consentProcessor != null && consentProcessor.consentGatedCheckAndTryEmbedding(mtbFile) ||
+            consentProcessor != null && consentProcessor.consentGatedCheckAndTryEmbedding(mtbFile, caseId) ||
                     consentProcessor == null
 
         if (!isConsentOk) {

@@ -77,6 +77,12 @@ bleibt dann aber leer.
 
 ## DIZ/Keycloak-Consent-Mock (LMU-Fork, `app.consent.service=diz_keycloak`)
 
+**Wichtig:** DIZ' Broad Consent ist ueber die **Fall-ID** verknuepft, nicht ueber
+`patient.id` im Mtb-JSON (das ist die FallnummerMV - eine andere ID). Die Fall-ID wird
+per `X-Case-Id`-Header uebertragen. Dieser Testservice sendet beim "An ETL senden"-Button
+denselben Wert aus dem Patient-/Fall-ID-Feld sowohl als `patient.id` im JSON als auch als
+`X-Case-Id`-Header - `ConsentProcessor` im ETL nutzt bevorzugt den Header.
+
 Damit sich `KeycloakDizConsentService` gegen diesen Mock statt gegen das echte DIZ testen
 laesst, in der `.env` (siehe `deploy/env-sample.lmu.env`):
 
