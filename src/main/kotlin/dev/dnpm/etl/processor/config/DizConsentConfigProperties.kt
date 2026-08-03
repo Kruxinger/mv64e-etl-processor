@@ -22,19 +22,27 @@ package dev.dnpm.etl.processor.config
 import org.springframework.boot.context.properties.ConfigurationProperties
 
 /**
- * Config for the LMU Broad-Consent lookup against DIZ, which fronts a gICS instance with a
- * Keycloak-secured FHIR search endpoint (`GET [uri]/Consent?...`, Bearer auth) instead of
- * upstream's Basic-Auth-secured gICS ([GIcsConfigProperties]).
+ * Config for the LMU Broad-Consent lookup against DIZ.
  *
- * Field names/defaults mirror [GIcsConfigProperties] deliberately, since the FHIR search
- * request shape and the MII Broad Consent policy codes are the same - only transport-level
- * auth and the base URI differ.
+ * Verified against the real system (see handoff notes / PoC): DIZ's endpoint is a plain
+ * `GET [uri]<patientId>` (patient id appended directly, no FHIR search params) - so [uri] is
+ * expected to already include everything up to the point where the id gets appended, e.g.
+ * `https://bc.diz.med.uni-muenchen.de/fhir/Consent?patient=`. This differs from Pauls's
+ * upstream [GIcsGetBroadConsentService][dev.dnpm.etl.processor.consent.GicsGetBroadConsentService],
+ * which does a real FHIR search - only the *response* shape (MII Broad Consent Bundle) and the
+ * resulting policy codes are the same, hence [broadConsentPolicyCode] etc. still mirroring
+ * [GIcsConfigProperties]'s field names/defaults.
+ *
+ * Auth also differs from plain client-credentials: DIZ's Keycloak realm requires the
+ * resource-owner-password grant, i.e. [keycloakUsername]/[keycloakPassword] of a service
+ * account *in addition to* client id/secret - see [dev.dnpm.etl.processor.keycloak.KeycloakTokenProvider].
  */
 @ConfigurationProperties(DizConsentConfigProperties.NAME)
 data class DizConsentConfigProperties
     @JvmOverloads
     constructor(
-        /** Base URL of the DIZ consent FHIR endpoint */
+        /** Everything up to (and usually including) the query param the patient id gets appended to,
+         * e.g. `https://bc.diz.med.uni-muenchen.de/fhir/Consent?patient=` */
         val uri: String?,
         val personIdentifierSystem: String =
             "https://ths-greifswald.de/fhir/gics/identifiers/Patienten-ID",
@@ -45,6 +53,10 @@ data class DizConsentConfigProperties
         val keycloakTokenUri: String? = null,
         val keycloakClientId: String? = null,
         val keycloakClientSecret: String? = null,
+        /** Service-account username for DIZ's resource-owner-password Keycloak grant */
+        val keycloakUsername: String? = null,
+        /** Service-account password for DIZ's resource-owner-password Keycloak grant */
+        val keycloakPassword: String? = null,
     ) {
         companion object {
             const val NAME = "app.consent.diz"

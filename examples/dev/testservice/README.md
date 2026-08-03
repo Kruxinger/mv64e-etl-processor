@@ -82,23 +82,30 @@ laesst, in der `.env` (siehe `deploy/env-sample.lmu.env`):
 
 ```
 APP_CONSENT_SERVICE=diz_keycloak
-APP_CONSENT_DIZ_URI=http://host.docker.internal:5000
+APP_CONSENT_DIZ_URI=http://host.docker.internal:5000/Consent?patient=
 APP_CONSENT_DIZ_KEYCLOAKTOKENURI=http://host.docker.internal:5000/mock-keycloak/token
 APP_CONSENT_DIZ_KEYCLOAKCLIENTID=mock-client
 APP_CONSENT_DIZ_KEYCLOAKCLIENTSECRET=mock-secret
+APP_CONSENT_DIZ_KEYCLOAKUSERNAME=mock-user
+APP_CONSENT_DIZ_KEYCLOAKPASSWORD=mock-password
 ```
 
 (Bei Docker-Compose-Betrieb statt `host.docker.internal` den Service-Namen dieses
-Containers nutzen; Client-ID/-Secret sind beliebig, der Mock-Token-Endpunkt prueft sie
-nicht.)
+Containers nutzen; alle Werte sind beliebig, der Mock prueft weder Grant-Type noch
+Credentials. Wichtig: `APP_CONSENT_DIZ_URI` muss mit `/Consent?patient=` enden - der ETL
+haengt die Patient-ID direkt an, siehe naechster Punkt.)
 
 Zwei zusaetzliche Endpunkte bedienen diesen Pfad:
 
-- `POST /mock-keycloak/token`: nimmt jeden Client-Credentials-Request an und antwortet mit
-  einem festen Fake-Access-Token - genug, damit `KeycloakTokenProvider` einen Bearer-Header
-  setzen kann, ohne dass ein echtes Keycloak involviert ist.
-- `GET /Consent?domain:identifier=...&category=...&patient.identifier=...`: mockt DIZ' FHIR-
-  Search. Liefert eine Bundle mit einem aktiven, `permit`-Consent (Code/System aus
+- `POST /mock-keycloak/token`: nimmt jeden Token-Request an (egal ob `client_credentials`
+  oder `password`-Grant) und antwortet mit einem festen Fake-Access-Token - genug, damit
+  `KeycloakTokenProvider` einen Bearer-Header setzen kann, ohne dass ein echtes Keycloak
+  involviert ist.
+- `GET /Consent?patient=<PatID>`: mockt DIZ' Consent-Endpunkt. Verifiziert gegen das echte
+  System ist das ein simples GET mit direkt angehaengter Patient-ID, kein FHIR-Search mit
+  separaten Parametern (das war die urspruengliche, in `temp.txt`/`LMU-README.md`
+  dokumentierte Annahme - inzwischen widerlegt und im ETL-Code korrigiert). Liefert eine
+  Bundle mit einem aktiven, `permit`-Consent (Code/System aus
   `CONSENT_POLICY_CODE`/`CONSENT_POLICY_SYSTEM`, Default = MII-Broad-Consent-Defaults der
   ETL-Config) fuer Patient-IDs, die im Frontend als "hat Consent" markiert wurden, sonst eine
   leere Bundle.
@@ -117,9 +124,11 @@ Rohantwort - so laesst sich der Rundlauf von beiden Seiten pruefen.
   Keycloak-gesicherte gPAS-Pseudonymisierungspfad laesst sich damit nicht sinnvoll
   durchspielen, da das echte gPAS nur aus dem Uniklinikum-Netz erreichbar ist - dafuer
   bleibt nur der Test auf dem Zielsystem.
-- Der Consent-Mock prueft weder den Inhalt des Bearer-Tokens noch die genauen Query-
-  Parameter (`domain:identifier`, `category`) - er reagiert rein auf die Patient-ID. Fuer
-  eine Verifikation des exakten Request-Formats gegen das echte DIZ reicht das nicht, dafuer
-  bleibt der Hinweis in `temp.txt`/`LMU-README.md` relevant.
+- Der Consent-Mock prueft weder den Inhalt des Bearer-Tokens noch, ob der Grant-Type wirklich
+  `password` ist - er reagiert rein auf die Patient-ID im `patient`-Query-Parameter. Das
+  Request-*Format* (URL-Form, Grant-Type) ist inzwischen gegen das echte System verifiziert;
+  offen bleibt nur, ob die exakte Response-*Struktur* (Bundle vs. einzelne Consent-Resource,
+  Policy-Codes) zu dem passt, was `ConsentProcessor` erwartet - das laesst sich nur mit einer
+  echten Antwort vom Zielsystem abschliessend pruefen.
 - Kein Auth-Schutz auf diesem Service selbst, kein Threading-Hardening ueber Flasks
   Dev-Server hinaus - bewusst nur fuer lokale Entwicklung, nicht fuer produktiven Einsatz.

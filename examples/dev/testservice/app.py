@@ -11,11 +11,10 @@ Drei Rollen in einer kleinen Flask-App:
    erfolgreicher Verarbeitung weiterleitet (APP_REST_URI muss auf diese
    App zeigen), zeigt es im Frontend an.
 3. Mock fuer DIZ (LMU-Fork, Consent-Service "diz_keycloak"): beantwortet
-   Keycloak-Token-Requests und die FHIR-Search-Consent-Abfrage
-   (GET /Consent?...) des ETL, damit sich der diz_keycloak-Codepfad testen
-   laesst, ohne dass echtes DIZ/Keycloak erreichbar sein muss. Welche
-   Patient-IDs einen (Mock-)Consent haben, wird ueber das Sende-Formular
-   gesteuert (siehe /send).
+   Keycloak-Token-Requests und die Consent-Abfrage (GET /Consent?patient=...)
+   des ETL, damit sich der diz_keycloak-Codepfad testen laesst, ohne dass
+   echtes DIZ/Keycloak erreichbar sein muss. Welche Patient-IDs einen
+   (Mock-)Consent haben, wird ueber das Sende-Formular gesteuert (siehe /send).
 
 Nur fuer lokale Entwicklung/Tests gedacht, keine Auth-Haertung noetig.
 """
@@ -307,12 +306,14 @@ def _build_empty_consent_bundle() -> dict:
 
 @app.route("/Consent", methods=["GET"])
 def consent_search():
-    """Mocks DIZ's FHIR search endpoint that KeycloakDizConsentService queries
-    (GET [uri]/Consent?domain:identifier=...&category=...&patient.identifier=...). Returns a
-    permit Bundle for patient ids marked via /send's "has_consent" checkbox, an empty Bundle
-    (no entries -> "not asked") for everything else."""
-    raw_identifier = request.args.get("patient.identifier", "")
-    patient_id = raw_identifier.split("|", 1)[-1] if raw_identifier else None
+    """Mocks DIZ's Consent endpoint that KeycloakDizConsentService queries - verified against
+    the real system to be a plain "GET [uri]<patientId>" with the id appended directly (not a
+    FHIR search with separate query params, which was the original, unverified assumption - see
+    temp.txt/LMU-README.md). APP_CONSENT_DIZ_URI must therefore end in "/Consent?patient=" so
+    the id lands in the "patient" query param read here. Returns a permit Bundle for patient ids
+    marked via /send's "has_consent" checkbox, an empty Bundle (no entries -> "not asked") for
+    everything else."""
+    patient_id = request.args.get("patient") or None
     had_auth_header = request.headers.get("Authorization", "").lower().startswith("bearer ")
 
     with state_lock:

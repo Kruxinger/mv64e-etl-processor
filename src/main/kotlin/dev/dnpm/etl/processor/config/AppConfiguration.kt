@@ -389,6 +389,10 @@ class AppConfiguration {
                 tokenUri = requireNotNull(dizConsentConfigProperties.keycloakTokenUri),
                 clientId = requireNotNull(dizConsentConfigProperties.keycloakClientId),
                 clientSecret = requireNotNull(dizConsentConfigProperties.keycloakClientSecret),
+                // DIZ's realm needs the resource-owner-password grant, verified against the
+                // real system - see DizConsentConfigProperties KDoc.
+                username = dizConsentConfigProperties.keycloakUsername,
+                password = dizConsentConfigProperties.keycloakPassword,
             ),
             restTemplate,
         )

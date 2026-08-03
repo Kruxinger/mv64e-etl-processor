@@ -29,9 +29,18 @@ Aktivieren: `APP_PSEUDONYMIZE_GENERATOR=GPAS_KEYCLOAK` (statt `GPAS`/`BUILDIN`).
 Neu: [`DizConsentConfigProperties`](src/main/kotlin/dev/dnpm/etl/processor/config/DizConsentConfigProperties.kt),
 [`KeycloakDizConsentService`](src/main/java/dev/dnpm/etl/processor/consent/KeycloakDizConsentService.java)
 
-Gleiches FHIR-Search-Schema wie Pauls `GicsGetBroadConsentService` (`GET [uri]/Consent?...`),
-aber Keycloak-Bearer statt Basic-Auth. Der MVConsent kommt weiterhin unverändert eingebettet im
-Mtb-JSON von Onkostar - daran wurde nichts geändert.
+**Request-Format gegen das echte System verifiziert (nicht mehr nur Annahme):** Anders als
+ursprünglich angenommen ist das **kein** FHIR-Search wie Pauls `GicsGetBroadConsentService`,
+sondern ein simples `GET [uri]<PatID>` mit direkt angehängter Patient-ID (kein
+`domain:identifier`/`category`/`patient.identifier`-Query). `APP_CONSENT_DIZ_URI` muss daher
+bereits alles bis inkl. Query-Präfix enthalten, z.B. `.../fhir/Consent?patient=`. Auth per
+Keycloak-Bearer, aber **Password-Grant** (Client-ID/-Secret **und** Username/Passwort eines
+Service-Users), nicht Client-Credentials. Der MVConsent kommt weiterhin unverändert eingebettet
+im Mtb-JSON von Onkostar - daran wurde nichts geändert.
+
+Offen: ob die Response selbst ein Bundle oder eine einzelne Consent-Resource ist, war beim
+Schreiben dieses Abschnitts noch nicht verifiziert - `KeycloakDizConsentService` parst daher
+beides. Siehe dessen Javadoc für Details.
 
 Aktivieren: `APP_CONSENT_SERVICE=diz_keycloak` (statt `gics`/`gics_get_bc`/`none`).
 
@@ -40,8 +49,11 @@ Aktivieren: `APP_CONSENT_SERVICE=diz_keycloak` (statt `gics`/`gics_get_bc`/`none
 Neu: [`KeycloakTokenProvider`](src/main/kotlin/dev/dnpm/etl/processor/keycloak/KeycloakTokenProvider.kt)
 (package `dev.dnpm.etl.processor.keycloak`)
 
-Client-Credentials-Flow, cached den Access-Token bis kurz vor Ablauf. Zwei Instanzen (gPAS,
-DIZ) mit eigenen Client-Credentials, da vermutlich unterschiedliche Keycloak-Clients/Realms.
+Client-Credentials-Flow per Default, cached den Access-Token bis kurz vor Ablauf. Zwei
+Instanzen (gPAS, DIZ) mit eigenen Credentials, da unterschiedliche Keycloak-Clients/Realms.
+DIZ braucht zusätzlich den Password-Grant (siehe oben) - dafür `username`/`password` im
+`KeycloakClientConfig` setzen, sonst greift automatisch Client-Credentials (z.B. für gPAS,
+dort bisher unverändert/unverifiziert).
 
 ### 4. TLS/Zertifikate
 

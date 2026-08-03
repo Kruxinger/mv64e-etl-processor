@@ -29,13 +29,21 @@ import java.time.Clock
 import java.time.Instant
 
 /**
- * Client-credentials config for a single Keycloak client (one per downstream service, since gPAS
- * and DIZ may live in different Keycloak realms/clients).
+ * Config for a single Keycloak client (one per downstream service, since gPAS and DIZ may live in
+ * different Keycloak realms/clients).
+ *
+ * Normally client-credentials (client id + secret only). DIZ's `broadconsent` realm instead
+ * requires the resource-owner-password grant (client id + secret *and* a service account's
+ * username/password) - verified against the real system, see [KeycloakTokenProvider]. Set
+ * [username]/[password] to switch a given client to that flow; leave them null for plain
+ * client-credentials (e.g. gPAS).
  */
 data class KeycloakClientConfig(
     val tokenUri: String,
     val clientId: String,
     val clientSecret: String,
+    val username: String? = null,
+    val password: String? = null,
 )
 
 /**
@@ -75,7 +83,13 @@ class KeycloakTokenProvider(
         headers.contentType = MediaType.APPLICATION_FORM_URLENCODED
 
         val body = LinkedMultiValueMap<String, String>()
-        body.add("grant_type", "client_credentials")
+        if (clientConfig.username != null && clientConfig.password != null) {
+            body.add("grant_type", "password")
+            body.add("username", clientConfig.username)
+            body.add("password", clientConfig.password)
+        } else {
+            body.add("grant_type", "client_credentials")
+        }
         body.add("client_id", clientConfig.clientId)
         body.add("client_secret", clientConfig.clientSecret)
 

@@ -36,21 +36,32 @@ Was noch fehlt / vor Ort zu tun ist
    - APP_REST_URI zeigt in der Vorlage noch auf den lokalen Mock-Service - auf die
      echte DNPM:DIP-URL umstellen, sobald die erreichbar ist
 
-WICHTIGSTER OFFENER PUNKT: DIZ-Consent-API-Form ist nicht gegen das echte System
-verifiziert
+GELOEST: DIZ-Consent-API-Form war nicht gegen das echte System verifiziert
 -------------------------------------------------------------------------------
 
-KeycloakDizConsentService (src/main/java/dev/dnpm/etl/processor/consent/) wurde nach
-dem Muster der bestehenden GicsGetBroadConsentService gebaut: ein "richtiger"
-FHIR-Search-GET-Request
+Update: inzwischen mit einem echten, lokal funktionierenden Python-POC gegen das
+Zielsystem verifiziert und im Code korrigiert. Die urspruengliche Annahme unten war
+falsch - tatsaechlich ist es doch das simple GET-mit-angehaengter-PatientId-Format wie
+im Python-Vorbild, nicht der FHIR-Search. Ausserdem: Keycloak braucht den
+password-Grant (Username/Passwort eines Service-Users zusaetzlich zu Client-ID/-Secret),
+nicht client_credentials - auch das war vorher nicht bekannt. Beides jetzt in
+KeycloakDizConsentService/KeycloakTokenProvider/DizConsentConfigProperties angepasst,
+siehe deren Javadoc/KDoc fuer Details.
+
+Weiterhin offen: ob die Response ein FHIR-Bundle oder eine einzelne Consent-Resource ist,
+war nicht aus dem POC ersichtlich - der Code parst defensiv beides
+(KeycloakDizConsentService#parseAsBundle). Sobald eine echte Response vorliegt: pruefen,
+ob die Policy-Codes darin zu dem passen, was ConsentProcessor erwartet
+(APP_CONSENT_DIZ_BROADCONSENTPOLICYCODE/-SYSTEM in DizConsentConfigProperties).
+
+Urspruenglicher Text (zur Nachvollziehbarkeit, nicht mehr aktuell):
+KeycloakDizConsentService wurde nach dem Muster der bestehenden GicsGetBroadConsentService
+gebaut: ein "richtiger" FHIR-Search-GET-Request
   GET [uri]/Consent?domain:identifier=...&category=...&patient.identifier=...
 NICHT 1:1 wie das Python-Vorbild (simples GET mit an die URL angehaengter PatientId).
 Das war eine bewusste Entscheidung, weil das der Standard ist, den ConsentProcessor
 erwartet - aber ungetestet gegen das echte DIZ, weil das von hier aus nicht erreichbar
-war. Sobald DIZ erreichbar ist: unbedingt zuerst pruefen, ob dieses Request-Format
-tatsaechlich passt. Falls nicht, ist der Blast-Radius klein - nur diese eine Klasse,
-Methode requestResponse(), muss angepasst werden. Bei Bedarf mit echten
-Beispiel-Payloads/curl-Tests gegen DIZ abgleichen, nicht raten.
+war.
 
 Bekannte, bereits geloeste Stolpersteine (nur falls sie erneut auftauchen)
 ---------------------------------------------------------------------------

@@ -32,9 +32,9 @@ import dev.dnpm.etl.processor.keycloak.KeycloakTokenProvider;
 import dev.dnpm.etl.processor.monitoring.ConnectionCheckResult;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import java.util.Objects;
 import org.apache.commons.io.IOUtils;
-import org.apache.hc.core5.net.URIBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,7 +49,9 @@ import reactor.core.publisher.Sinks;
 @ExtendWith(MockitoExtension.class)
 class KeycloakDizConsentServiceTest {
 
-  static final String DIZ_BASE_URI = "http://localhost:8090/diz-fhir/fhir";
+  // verified against the real system: uri already includes everything up to the point where the
+  // patient id gets appended directly - see KeycloakDizConsentService's class Javadoc
+  static final String DIZ_BASE_URI = "http://localhost:8090/diz-fhir/fhir/Consent?patient=";
 
   @Mock KeycloakTokenProvider tokenProvider;
 
@@ -57,16 +59,8 @@ class KeycloakDizConsentServiceTest {
   DizConsentConfigProperties config;
   KeycloakDizConsentService service;
 
-  static URI expectedConsentEndpoint() throws Exception {
-    return new URIBuilder(URI.create(DIZ_BASE_URI))
-        .appendPath("/Consent")
-        .addParameter("domain:identifier", "MII")
-        .addParameter(
-            "category", "http://fhir.de/ConsentManagement/CodeSystem/ResultType|consent-status")
-        .addParameter(
-            "patient.identifier",
-            "https://ths-greifswald.de/fhir/gics/identifiers/Patienten-ID|123456")
-        .build();
+  static URI expectedConsentEndpoint() {
+    return URI.create(DIZ_BASE_URI + "123456");
   }
 
   @BeforeEach
@@ -117,5 +111,37 @@ class KeycloakDizConsentServiceTest {
 
     var consentStatus = service.getTtpBroadConsentStatus("123456");
     assertThat(consentStatus).isEqualTo(TtpConsentStatus.FAILED_TO_ASK);
+  }
+
+  @Test
+  void shouldWrapBareConsentResourceIntoBundle() throws Exception {
+    // the real DIZ response shape (Bundle vs bare Consent) wasn't confirmed at the time of
+    // writing - getConsent() must work either way, see KeycloakDizConsentService#parseAsBundle
+    when(tokenProvider.getAccessToken()).thenReturn("test-token");
+
+    var bareConsent =
+        """
+        {
+          "resourceType": "Consent",
+          "status": "active",
+          "provision": {
+            "type": "deny",
+            "provision": [ {
+              "type": "permit",
+              "code": [ { "coding": [ {
+                "system": "urn:oid:2.16.840.1.113883.3.1937.777.24.5.3",
+                "code": "2.16.840.1.113883.3.1937.777.24.5.3.6"
+              } ] } ]
+            } ]
+          }
+        }
+        """;
+
+    mockRestServiceServer
+        .expect(requestTo(expectedConsentEndpoint()))
+        .andRespond(withSuccess(bareConsent, MediaType.APPLICATION_JSON));
+
+    var bundle = service.getConsent("123456", new Date(), ConsentDomain.BROAD_CONSENT);
+    assertThat(bundle.getEntry()).hasSize(1);
   }
 }

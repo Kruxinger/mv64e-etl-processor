@@ -23,10 +23,10 @@ import ca.uhn.fhir.parser.DataFormatException;
 import dev.dnpm.etl.processor.config.AppFhirConfig;
 import dev.dnpm.etl.processor.config.DizConsentConfigProperties;
 import dev.dnpm.etl.processor.keycloak.KeycloakTokenProvider;
-import java.net.URISyntaxException;
+import java.net.URI;
 import java.util.Date;
-import org.apache.hc.core5.net.URIBuilder;
 import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.Consent;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.LoggerFactory;
@@ -39,9 +39,16 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 /**
- * Requests Broad Consent from DIZ (LMU), which fronts a gICS instance with the same FHIR search
- * ({@code GET [uri]/Consent?...}) shape as upstream's {@link GicsGetBroadConsentService}, but
- * secured via Keycloak Bearer token instead of Basic-Auth.
+ * Requests Broad Consent from DIZ (LMU), secured via Keycloak (resource-owner-password grant,
+ * see {@link KeycloakTokenProvider}).
+ *
+ * <p>Request shape verified against the real system: a plain {@code GET [uri]<patientId>} with
+ * the patient id appended directly - <b>not</b> a FHIR search with separate query params like
+ * upstream's {@link GicsGetBroadConsentService}. {@link DizConsentConfigProperties#getUri()} is
+ * therefore expected to already include everything up to the insertion point, e.g. {@code
+ * https://bc.diz.med.uni-muenchen.de/fhir/Consent?patient=}. The response is parsed leniently as
+ * either a Bundle or a bare Consent resource, since which of the two DIZ actually returns wasn't
+ * confirmed at the time of writing.
  *
  * @since LMU fork
  */
@@ -84,9 +91,7 @@ public class KeycloakDizConsentService extends AbstractConsentService {
   @Override
   public Bundle getConsent(
       String personIdentifierValue, Date requestDate, ConsentDomain consentDomain) {
-    return fhirContext
-        .newJsonParser()
-        .parseResource(Bundle.class, requestResponse(personIdentifierValue));
+    return parseAsBundle(requestResponse(personIdentifierValue));
   }
 
   @Nullable
@@ -95,19 +100,10 @@ public class KeycloakDizConsentService extends AbstractConsentService {
       throw new IllegalStateException("Missing DIZ consent URI configuration");
     }
 
-    final var patientIdentifierQueryValue =
-        "%s|%s".formatted(this.config.getPersonIdentifierSystem(), personIdentifierValue);
-
     try {
-      final var uri =
-          new URIBuilder(config.getUri())
-              .appendPathSegments("Consent")
-              .addParameter("domain:identifier", config.getBroadConsentDomainName())
-              .addParameter(
-                  "category",
-                  "http://fhir.de/ConsentManagement/CodeSystem/ResultType|consent-status")
-              .addParameter("patient.identifier", patientIdentifierQueryValue)
-              .build();
+      // patient id appended directly - assumed URL-safe (numeric FallnummerMV-derived value),
+      // matching the verified reference implementation exactly rather than guessing at encoding
+      final var uri = URI.create(config.getUri() + personIdentifierValue);
 
       final var requestHeaders = new HttpHeaders();
       requestHeaders.setBearerAuth(tokenProvider.getAccessToken());
@@ -120,7 +116,7 @@ public class KeycloakDizConsentService extends AbstractConsentService {
       if (response.getStatusCode().is2xxSuccessful()) {
         final var body = response.getBody();
         dizConsentInspection.record(
-            true, personIdentifierValue, consentBundleHasEntries(body), body);
+            true, personIdentifierValue, !parseAsBundle(body).getEntry().isEmpty(), body);
         return body;
       } else {
         log.error(
@@ -141,21 +137,39 @@ public class KeycloakDizConsentService extends AbstractConsentService {
       dizConsentInspection.record(
           false, personIdentifierValue, false, terminatedRetryException.getMessage());
       return null;
-    } catch (URISyntaxException e) {
+    } catch (IllegalArgumentException e) {
       log.error("Invalid URI for DIZ consent request: '{}'", e.getMessage());
       dizConsentInspection.record(false, personIdentifierValue, false, e.getMessage());
       return null;
     }
   }
 
-  private boolean consentBundleHasEntries(@Nullable String json) {
+  /**
+   * Parses the raw response leniently: a Bundle is returned as-is, a bare Consent resource gets
+   * wrapped into a single-entry Bundle, so {@link #getConsent} always returns a uniform Bundle
+   * shape regardless of which one DIZ actually sends. Null body, unparseable JSON, or an
+   * unexpected resource type all fall back to an empty Bundle - consistent with "not asked",
+   * which is how ConsentProcessor already treats an empty entry list.
+   */
+  private Bundle parseAsBundle(@Nullable String json) {
     if (null == json) {
-      return false;
+      return new Bundle();
     }
     try {
-      return !fhirContext.newJsonParser().parseResource(Bundle.class, json).getEntry().isEmpty();
+      final var resource = fhirContext.newJsonParser().parseResource(json);
+      if (resource instanceof Bundle bundle) {
+        return bundle;
+      }
+      if (resource instanceof Consent consent) {
+        final var bundle = new Bundle();
+        bundle.addEntry().setResource(consent);
+        return bundle;
+      }
+      log.error("Unexpected DIZ consent response resource type: '{}'", resource.getClass());
+      return new Bundle();
     } catch (DataFormatException e) {
-      return false;
+      log.error("Failed to parse DIZ consent response as FHIR resource: '{}'", e.getMessage());
+      return new Bundle();
     }
   }
 
