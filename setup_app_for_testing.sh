@@ -19,7 +19,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
-BRANCH="${BRANCH:-claude/mitmpolpat-server-deployment-99yizd}"
+BRANCH="${BRANCH:-master}"
 COMPOSE_PROJECT="${COMPOSE_PROJECT:-mv64e-etl-processor}"
 ETL_IMAGE="${ETL_IMAGE:-mv64e-etl-processor:lmu-local}"
 TESTSERVICE_IMAGE="${TESTSERVICE_IMAGE:-etl-testservice}"
