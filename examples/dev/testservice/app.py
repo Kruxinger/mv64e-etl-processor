@@ -163,6 +163,7 @@ def send():
             "ok": True,
             "status_code": response.status_code,
             "body": response.text,
+            "payload": payload,
             "patient_id": patient_id,
             "case_id": case_id,
             "has_consent": has_consent,
@@ -173,6 +174,7 @@ def send():
         result = {
             "ok": False,
             "error": str(e),
+            "payload": payload,
             "patient_id": patient_id,
             "case_id": case_id,
             "has_consent": has_consent,
@@ -214,7 +216,10 @@ def receive_patient_record():
             "content_type": request.content_type,
             "had_auth_header": "Authorization" in request.headers,
             "patient_id": _extract_patient_id(parsed) if parsed else None,
-            "body_preview": raw_body[:4000],
+            # generous cap, not a meaningful truncation - a realistic Mtb file is well under
+            # this, so the frontend gets the full body to pretty-print; just a safety net
+            # against something pathological
+            "body": raw_body[:200_000],
             "body_size": len(raw_body),
             "replied_severity": severity,
         }
@@ -241,7 +246,7 @@ def receive_delete(patient_id: str):
             "content_type": request.content_type,
             "had_auth_header": "Authorization" in request.headers,
             "patient_id": patient_id,
-            "body_preview": "(DELETE request, kein Body)",
+            "body": "(DELETE request, kein Body)",
             "body_size": 0,
             "replied_severity": "success",
         }

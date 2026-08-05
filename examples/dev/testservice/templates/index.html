@@ -7,7 +7,7 @@
     :root { color-scheme: light dark; }
     body {
       font-family: -apple-system, Segoe UI, Roboto, sans-serif;
-      max-width: 1300px;
+      max-width: 1700px;
       margin: 2rem auto;
       padding: 0 1rem;
       line-height: 1.4;
@@ -46,6 +46,8 @@
     button.secondary:hover { background: #374151; }
     button:disabled { opacity: 0.5; cursor: wait; }
     select, label { font-size: 0.9rem; }
+    .panels-main { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    @media (max-width: 1100px) { .panels-main { grid-template-columns: 1fr; } }
     .panels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
     @media (max-width: 1100px) { .panels { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 700px) { .panels { grid-template-columns: 1fr; } }
@@ -56,6 +58,8 @@
       min-height: 200px;
     }
     .panel h2 { margin-top: 0; font-size: 1.05rem; }
+    .panel.large pre { max-height: 65vh; font-size: 0.82rem; }
+    .json-label { font-size: 0.85rem; opacity: 0.8; margin: 0.6rem 0 0.2rem; font-weight: 600; }
     .badge {
       display: inline-block;
       padding: 0.1rem 0.5rem;
@@ -131,15 +135,18 @@
     <button id="refreshBtn" class="secondary">Aktualisieren</button>
   </div>
 
-  <div class="panels">
-    <div class="panel">
+  <div class="panels-main">
+    <div class="panel large">
       <h2>Gesendet (an ETL)</h2>
       <div id="sentPanel"></div>
     </div>
-    <div class="panel">
+    <div class="panel large">
       <h2>Empfangen (vom ETL, als Mock-DIP)</h2>
       <div id="receivedPanel"></div>
     </div>
+  </div>
+
+  <div class="panels">
     <div class="panel">
       <h2>DIZ Consent (Mock)</h2>
       <div id="consentPanel"></div>
@@ -166,6 +173,26 @@
       return div.innerHTML;
     }
 
+    // Accepts either an already-parsed value (e.g. the sent payload, which arrives as JSON
+    // from /state) or a raw JSON string (e.g. the received body, forwarded as-is by the ETL).
+    // Falls back to the raw input if it isn't valid/complete JSON, so a truncated or non-JSON
+    // body still renders instead of showing nothing.
+    function prettyJson(value) {
+      if (value === undefined || value === null || value === '') return '';
+      if (typeof value === 'string') {
+        try {
+          return JSON.stringify(JSON.parse(value), null, 2);
+        } catch {
+          return value;
+        }
+      }
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return String(value);
+      }
+    }
+
     function statusBadge(statusCode) {
       if (statusCode === undefined || statusCode === null) return '<span class="badge err">Fehler</span>';
       if (statusCode < 300) return `<span class="badge ok">HTTP ${statusCode}</span>`;
@@ -179,19 +206,26 @@
       const idLine = `Patient-ID: <code>${escapeHtml(sent.patient_id)}</code>,
           Fall-ID: <code>${sent.case_id ? escapeHtml(sent.case_id) : '(leer, Fallback auf Patient-ID)'}</code>,
           Consent im Mock: ${sent.has_consent ? 'ja' : 'nein'}`;
+      const payloadBlock = sent.payload
+        ? `<div class="json-label">Gesendetes JSON (Body des POST an /mtb):</div>
+           <pre>${escapeHtml(prettyJson(sent.payload))}</pre>`
+        : '';
       if (!sent.ok) {
         el.innerHTML = `
           <div class="meta">${sent.time}</div>
           <div class="meta">${idLine}</div>
           <span class="badge err">Verbindungsfehler</span>
-          <pre>${escapeHtml(sent.error)}</pre>`;
+          <pre>${escapeHtml(sent.error)}</pre>
+          ${payloadBlock}`;
         return;
       }
       el.innerHTML = `
         <div class="meta">${sent.time}</div>
         <div class="meta">${idLine}</div>
         ${statusBadge(sent.status_code)}
-        <pre>${escapeHtml(sent.body || '(leerer Body - normal bei 202 Accepted)')}</pre>`;
+        ${payloadBlock}
+        <div class="json-label">Antwort vom ETL (Body, meist leer bei 202 Accepted):</div>
+        <pre>${escapeHtml(sent.body || '(leer)')}</pre>`;
     }
 
     function renderReceived(received) {
@@ -204,7 +238,8 @@
           Auth-Header: ${received.had_auth_header ? 'ja' : 'nein'},
           ${received.body_size} Bytes</div>
         <div class="meta">Antwort an ETL: <strong>${received.replied_severity}</strong></div>
-        <pre>${escapeHtml(received.body_preview)}</pre>`;
+        <div class="json-label">Weitergeleitetes JSON (an Mock-DIP):</div>
+        <pre>${escapeHtml(prettyJson(received.body))}</pre>`;
     }
 
     function renderConsent(check) {
