@@ -87,6 +87,15 @@ als `.pem` in `bindings/ca-certificates/` abgelegt werden, sobald ihr auf einem 
 Netzzugriff seid. Deckt automatisch alle ausgehenden HTTPS-Verbindungen ab (gPAS, DIZ, Keycloak,
 DNPM:DIP), da alle HTTP-Clients hier das JVM-Standard-Truststore nutzen.
 
+## Kompletten Reset nach Codeänderungen automatisieren
+
+`./setup_app_for_testing.sh` fasst den Ablauf git pull → CSS/JS-Bundles bauen → ETL-Image
+bauen → Testservice-Image bauen → beide (neu) starten in einem Befehl zusammen. Setzt eine
+bereits ausgefüllte `deploy/.env` voraus (siehe unten), verschiebt/erstellt sie aber nicht.
+Proxy ist per Default auf `medwww.med.uni-muenchen.de:8080` gesetzt (siehe Variablen am
+Kopf des Scripts) - bei Bedarf per Umgebungsvariable überschreiben, z.B.
+`PROXY_HOST="" ./setup_app_for_testing.sh` für ein Netz ohne Proxy-Pflicht.
+
 ## Lokal getestet (jetzt, gegen den Mock-Service statt echtem DNPM:DIP)
 
 `deploy/env-sample.lmu.env` ist eine vollständige, eigenständige `.env`-Vorlage -
