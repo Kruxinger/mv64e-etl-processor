@@ -39,17 +39,13 @@ if [ ! -f deploy/.env ]; then
     exit 1
 fi
 
-log "Repo-Status pruefen"
-if [ -n "$(git status --porcelain)" ]; then
-    echo "FEHLER: uncommittete Aenderungen im Repo - erst committen/stashen." >&2
-    git status --short
-    exit 1
-fi
-
-log "git pull ($BRANCH)"
+log "git pull ($BRANCH), lokale Aenderungen verwerfen (z.B. package-lock.json nach npm install)"
+# Dieser Server ist reines Deploy-Ziel - hier wird nie manuell editiert, daher unbedenklich,
+# den lokalen Stand immer hart auf origin zurueckzusetzen. deploy/.env ist .gitignored und
+# bleibt davon unberuehrt.
 git fetch origin "$BRANCH"
 git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
-git pull --ff-only origin "$BRANCH"
+git reset --hard "origin/$BRANCH"
 
 log "CSS/JS-Bundles bauen (npm)"
 if [ -n "$PROXY_URL" ]; then
