@@ -30,7 +30,12 @@ class PseudonymizeService(
 ) {
     fun patientPseudonym(patientId: PatientId): PatientPseudonym =
         when (generator) {
-            is GpasPseudonymGenerator -> PatientPseudonym(generator.generate(patientId.value))
+            // LMU fork: KeycloakGpasPseudonymGenerator's Vorgangsnummer is already gPAS's own,
+            // final pseudonym (see its KDoc) - like GpasPseudonymGenerator, it must not be
+            // prefixed again, otherwise DNPM:DIP would receive a value gPAS never issued.
+            is GpasPseudonymGenerator,
+            is KeycloakGpasPseudonymGenerator,
+            -> PatientPseudonym(generator.generate(patientId.value))
             else ->
                 PatientPseudonym("${configProperties.prefix}_${generator.generate(patientId.value)}")
         }

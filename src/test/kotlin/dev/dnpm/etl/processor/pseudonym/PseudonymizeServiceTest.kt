@@ -66,6 +66,19 @@ class PseudonymizeServiceTest {
   }
 
   @Test
+  fun shouldNotUsePseudonymPrefixForKeycloakGpas(@Mock generator: KeycloakGpasPseudonymGenerator) {
+    // LMU fork: the Vorgangsnummer from KeycloakGpasPseudonymGenerator is already gPAS's own
+    // final pseudonym, must not get APP_PSEUDONYMIZE_PREFIX prepended - same as GpasPseudonymGenerator
+    doAnswer { it.arguments[0] }.whenever(generator).generate(anyString())
+
+    val pseudonymizeService = PseudonymizeService(generator, PseudonymizeConfigProperties())
+
+    mtbFile.pseudonymizeWith(pseudonymizeService)
+
+    assertThat(mtbFile.patient.id).isEqualTo("123")
+  }
+
+  @Test
   fun sanitizeFileName() {
     val result = GpasPseudonymGenerator.sanitizeValue("l://a\\bs;1*2?3>")
 

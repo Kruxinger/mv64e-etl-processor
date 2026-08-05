@@ -94,6 +94,15 @@ Fehlern fuer neue Faelle auffaellt: in KeycloakGpasPseudonymGenerator.generate()
 Call von getPseudonymFor auf getOrCreatePseudonymFor umstellen (Operation existiert im
 Interface bereits, ist upstream schon vorhanden).
 
+3. Dritter, separater Fund beim ersten echten End-to-End-Test (Consent + Pseudonymisierung
+   zusammen): APP_PSEUDONYMIZE_PREFIX wurde auch auf die gPAS-Vorgangsnummer angewendet
+   (PseudonymizeService.patientPseudonym() nahm nur Pauls GpasPseudonymGenerator von der
+   Prefix-Logik aus, nicht unser KeycloakGpasPseudonymGenerator - beide sind aber "echte"
+   gPAS-Pseudonyme, die unveraendert an DNPM:DIP sollen). Rueckfrage an den Nutzer ergab:
+   Prefix soll NICHT auf gPAS-Pseudonyme angewendet werden - PseudonymizeService.kt jetzt
+   entsprechend gefixt (KeycloakGpasPseudonymGenerator im selben when-Zweig wie
+   GpasPseudonymGenerator).
+
 Bekannte, bereits geloeste Stolpersteine (nur falls sie erneut auftauchen)
 ---------------------------------------------------------------------------
 
