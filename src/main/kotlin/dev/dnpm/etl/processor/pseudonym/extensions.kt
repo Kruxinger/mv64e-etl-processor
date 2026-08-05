@@ -21,6 +21,7 @@
 package dev.dnpm.etl.processor.pseudonym
 
 import dev.dnpm.etl.processor.PatientId
+import dev.dnpm.etl.processor.PatientPseudonym
 import dev.pcvolkmer.mv64e.mtb.ModelProjectConsent
 import dev.pcvolkmer.mv64e.mtb.Mtb
 import dev.pcvolkmer.mv64e.mtb.MvhMetadata
@@ -30,11 +31,13 @@ import org.apache.commons.codec.digest.DigestUtils
  * Replaces patient ID with generated patient pseudonym
  *
  * @param pseudonymizeService The pseudonymizeService to be used
- * @return The MTB file containing patient pseudonymes
+ * @return The generated [PatientPseudonym], so callers can reuse it (e.g. as the genomDE
+ *   transfer TAN, see [PseudonymizeService.genomDeTan]) without generating a second one
  * @since 0.11.0
  */
-infix fun Mtb.pseudonymizeWith(pseudonymizeService: PseudonymizeService) {
-  val patientPseudonym = pseudonymizeService.patientPseudonym(PatientId(this.patient.id)).value
+infix fun Mtb.pseudonymizeWith(pseudonymizeService: PseudonymizeService): PatientPseudonym {
+  val pseudonym = pseudonymizeService.patientPseudonym(PatientId(this.patient.id))
+  val patientPseudonym = pseudonym.value
 
   this.episodesOfCare?.filterNotNull()?.forEach { it.patient?.id = patientPseudonym }
   this.carePlans?.filterNotNull()?.forEach { carePlan ->
@@ -107,6 +110,8 @@ infix fun Mtb.pseudonymizeWith(pseudonymizeService: PseudonymizeService) {
       researchConsent["patient"] = mapOf("reference" to "Patient/$patientPseudonym")
     }
   }
+
+  return pseudonym
 }
 
 /**
@@ -299,6 +304,12 @@ fun Mtb.ensureMetaDataIsInitialized() {
   }
 }
 
-infix fun Mtb.addGenomDeTan(pseudonymizeService: PseudonymizeService) {
-  this.metadata?.transferTan = pseudonymizeService.genomDeTan(PatientId(this.patient.id))
+/**
+ * Sets the genomDE transfer TAN, generated up front by the caller (see
+ * [PseudonymizeService.genomDeTan]) so it can be derived from the same [PatientPseudonym] used
+ * by [pseudonymizeWith] where the active [Generator] requires that (LMU's
+ * [KeycloakGpasPseudonymGenerator]).
+ */
+infix fun Mtb.addGenomDeTan(transferTan: String) {
+  this.metadata?.transferTan = transferTan
 }

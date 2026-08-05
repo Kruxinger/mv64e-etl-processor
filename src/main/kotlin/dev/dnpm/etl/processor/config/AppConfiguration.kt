@@ -207,14 +207,12 @@ class AppConfiguration {
     @Conditional(GpasKeycloakEnabledCondition::class)
     @Bean
     fun keycloakGpasPseudonymGenerator(
-        gpasConfigProperties: GPasConfigProperties,
         gpasKeycloakConfigProperties: GpasKeycloakConfigProperties,
         retryTemplate: RetryTemplate,
         gpasSoapProxyKeycloak: GpasSoapService,
     ): Generator {
         logger.info("Selected 'KeycloakGpasPseudonym Generator'")
         return KeycloakGpasPseudonymGenerator(
-            gpasConfigProperties,
             gpasKeycloakConfigProperties,
             retryTemplate,
             gpasSoapProxyKeycloak,

@@ -40,7 +40,20 @@ class PseudonymizeService(
                 PatientPseudonym("${configProperties.prefix}_${generator.generate(patientId.value)}")
         }
 
-    fun genomDeTan(patientId: PatientId): String = generator.generateGenomDeTan(patientId.value)
+    fun genomDeTan(
+        patientId: PatientId,
+        patientPseudonym: PatientPseudonym,
+    ): String =
+        when (generator) {
+            // LMU fork: KeycloakGpasPseudonymGenerator's Vorgangsnummer is already a fresh,
+            // per-submission pseudonym tied back to the patient via the 'arbeitsnummer' domain -
+            // exactly what a genomDE transfer TAN needs. Reuse it instead of minting a second,
+            // unrelated one from the separate multi-pseudonym domain
+            // (APP_PSEUDONYMIZE_GPAS_GENOM_DE_TAN_DOMAIN, upstream default "ccdn") that this
+            // two-step chain has no use for and that isn't provisioned at LMU.
+            is KeycloakGpasPseudonymGenerator -> patientPseudonym.value
+            else -> generator.generateGenomDeTan(patientId.value)
+        }
 
     fun prefix(): String = configProperties.prefix
 }

@@ -19,7 +19,6 @@
 
 package dev.dnpm.etl.processor.pseudonym
 
-import dev.dnpm.etl.processor.config.GPasConfigProperties
 import dev.dnpm.etl.processor.config.GpasKeycloakConfigProperties
 import org.slf4j.LoggerFactory
 import org.springframework.retry.support.RetryTemplate
@@ -44,9 +43,16 @@ import org.springframework.retry.support.RetryTemplate
  * Onkostar); this is *not* a mandatory field in Onkostar's "DNPM Klinik/Anamnese" form, so an
  * empty or non-numeric value is treated as a hard, clearly-reported error rather than silently
  * producing a bogus pseudonym or throwing an opaque NPE deep inside the SOAP call.
+ *
+ * The Vorgangsnummer produced by [generate] is also reused as the genomDE transfer TAN - see
+ * [generateGenomDeTan] and [PseudonymizeService.genomDeTan] - instead of requesting a second,
+ * separate pseudonym from upstream's
+ * [dev.dnpm.etl.processor.config.GPasConfigProperties.genomDeTanDomain] multi-pseudonym domain:
+ * it is already exactly what a transfer TAN needs (fresh per submission, traceable back to the
+ * patient via the 'arbeitsnummer'), and LMU's gPAS instance has no domain provisioned for that
+ * separate upstream mechanism.
  */
 class KeycloakGpasPseudonymGenerator(
-    private val gpasCfg: GPasConfigProperties,
     private val keycloakCfg: GpasKeycloakConfigProperties,
     private val retryTemplate: RetryTemplate,
     private val gpasSoapService: GpasSoapService,
@@ -67,10 +73,17 @@ class KeycloakGpasPseudonymGenerator(
             vorgangsnummer
         }
 
+    /**
+     * Not used - [PseudonymizeService.genomDeTan] special-cases [KeycloakGpasPseudonymGenerator]
+     * and reuses the Vorgangsnummer from [generate] as the transfer TAN instead (see the class
+     * KDoc). Throws rather than silently falling back to upstream's separate, unconfigured
+     * genomDE-TAN domain if this is ever invoked directly.
+     */
     override fun generateGenomDeTan(id: String): String =
-        retryTemplate.execute<String, Exception> {
-            gpasSoapService.createPseudonymsFor(id, gpasCfg.genomDeTanDomain, 1).first()
-        }
+        throw UnsupportedOperationException(
+            "KeycloakGpasPseudonymGenerator does not generate a separate genomDE transfer TAN - " +
+                "PseudonymizeService.genomDeTan() reuses the Vorgangsnummer from generate() instead",
+        )
 
     /**
      * gPAS expects the case id prefixed for the 'arbeitsnummer' domain (prefix added if not

@@ -19,7 +19,6 @@
 
 package dev.dnpm.etl.processor.pseudonym
 
-import dev.dnpm.etl.processor.config.GPasConfigProperties
 import dev.dnpm.etl.processor.config.GpasKeycloakConfigProperties
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -33,15 +32,6 @@ import org.springframework.retry.support.RetryTemplate
 
 @ExtendWith(MockitoExtension::class)
 class KeycloakGpasPseudonymGeneratorTest {
-    private val gpasConfigProperties =
-        GPasConfigProperties(
-            uri = null,
-            soapEndpoint = "http://localhost/gpas",
-            pidDomain = null,
-            username = null,
-            password = null,
-        )
-
     private val keycloakConfigProperties =
         GpasKeycloakConfigProperties(
             arbeitsnummerDomain = "arbeitsnummer",
@@ -62,7 +52,6 @@ class KeycloakGpasPseudonymGeneratorTest {
 
         val generator =
             KeycloakGpasPseudonymGenerator(
-                gpasConfigProperties,
                 keycloakConfigProperties,
                 retryTemplate,
                 gpasSoapService,
@@ -86,7 +75,6 @@ class KeycloakGpasPseudonymGeneratorTest {
 
         val generator =
             KeycloakGpasPseudonymGenerator(
-                gpasConfigProperties,
                 keycloakConfigProperties,
                 retryTemplate,
                 gpasSoapService,
@@ -103,7 +91,6 @@ class KeycloakGpasPseudonymGeneratorTest {
     ) {
         val generator =
             KeycloakGpasPseudonymGenerator(
-                gpasConfigProperties,
                 keycloakConfigProperties,
                 retryTemplate,
                 gpasSoapService,
@@ -119,7 +106,6 @@ class KeycloakGpasPseudonymGeneratorTest {
     ) {
         val generator =
             KeycloakGpasPseudonymGenerator(
-                gpasConfigProperties,
                 keycloakConfigProperties,
                 retryTemplate,
                 gpasSoapService,
@@ -129,21 +115,19 @@ class KeycloakGpasPseudonymGeneratorTest {
     }
 
     @Test
-    fun shouldGenerateGenomDeTanIndependently(
+    fun shouldRejectDirectGenomDeTanGeneration(
         @Mock gpasSoapService: GpasSoapService,
     ) {
-        whenever(gpasSoapService.createPseudonymsFor("123", "ccdn", 1)).thenReturn(listOf("TAN-1"))
-
+        // PseudonymizeService.genomDeTan() special-cases this generator and reuses the
+        // Vorgangsnummer from generate() instead of calling this method - see its KDoc.
         val generator =
             KeycloakGpasPseudonymGenerator(
-                gpasConfigProperties,
                 keycloakConfigProperties,
                 retryTemplate,
                 gpasSoapService,
             )
 
-        val result = generator.generateGenomDeTan("123")
-
-        assertThat(result).isEqualTo("TAN-1")
+        assertThatThrownBy { generator.generateGenomDeTan("123") }
+            .isInstanceOf(UnsupportedOperationException::class.java)
     }
 }
