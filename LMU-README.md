@@ -1,6 +1,7 @@
 # LMU-Fork des mv64e-etl-processor
 
-Dieser Branch (`lmu-custom`) ist ein Fork von
+Dieser Fork ([`Kruxinger/mv64e-etl-processor`](https://github.com/Kruxinger/mv64e-etl-processor),
+entwickelt direkt auf `master` - kein separater Integrations-Branch) basiert auf
 [pcvolkmer/mv64e-etl-processor](https://github.com/pcvolkmer/mv64e-etl-processor) (Paul,
 wartet die Kernlogik weiter, insbesondere das MV64e-Datenmodell). Strategie: Pauls ETL nutzen,
 für den LMU-Workflow umbauen, seine Änderungen regelmäßig reinmergen - siehe
@@ -34,6 +35,16 @@ hier: Keycloak-**Password-Grant**, nicht Client-Credentials - `GpasKeycloakConfi
 braucht daher zusätzlich `username`/`password` eines Service-Users (Client-ID/-Secret allein
 reichen nicht).
 
+**Update, im Praxisbetrieb verifiziert und gefixt:** Die Vorgangsnummer wird zusätzlich als
+genomDE-Transfer-TAN (`metadata.transferTan`) wiederverwendet, statt wie bei Paul eine
+zweite, unabhängige Pseudonymisierung aus einer separaten gPAS-Multi-Pseudonym-Domäne
+(`APP_PSEUDONYMIZE_GPAS_GENOM_DE_TAN_DOMAIN`, Default `ccdn`) anzufordern - diese Domäne war
+bei uns nie angelegt, jeder `/mtb`-Aufruf schlug deshalb mit "db object for domain ccdn not
+found" fehl. Die Vorgangsnummer erfüllt bereits alles, was eine Transfer-TAN braucht (frisch
+pro Übertragung, über die Arbeitsnummer auf den Patienten rückführbar) - siehe KDoc von
+`KeycloakGpasPseudonymGenerator`/`PseudonymizeService.genomDeTan()` sowie CLAUDE.md
+"LMU fork gotchas".
+
 Aktivieren: `APP_PSEUDONYMIZE_GENERATOR=GPAS_KEYCLOAK` (statt `GPAS`/`BUILDIN`).
 
 ### 2. Consent: Broad Consent von DIZ statt gICS direkt
@@ -63,6 +74,15 @@ Offen: ob die Response selbst ein Bundle oder eine einzelne Consent-Resource ist
 Schreiben dieses Abschnitts noch nicht verifiziert - `KeycloakDizConsentService` parst daher
 beides. Siehe dessen Javadoc für Details.
 
+Mittlerweile im Praxisbetrieb bestätigt: Die echte DIZ-Antwort ist ein FHIR-Bundle
+(`type: searchset`), Policy-Codes passen exakt zu den Defaults in `DizConsentConfigProperties`.
+
+**Hinweis:** Die Fall-ID wird pro Request-Zeile auch in der Monitoring-Oberfläche (`/`,
+`/configs`) angezeigt (`fragments.html`, Feld "Fall-ID"). Ein Bug dort (Zugriff auf
+`request.caseId.value` statt `request.caseId` - Kotlin-Inline-Value-Class, siehe CLAUDE.md
+"LMU fork gotchas") liess die komplette Startseite mit einem Thymeleaf/SpEL-Fehler abstürzen,
+sobald mindestens eine Request-Zeile existierte - ist inzwischen gefixt.
+
 Aktivieren: `APP_CONSENT_SERVICE=diz_keycloak` (statt `gics`/`gics_get_bc`/`none`).
 
 ### 3. Geteilte Komponente: Keycloak-Token-Provider
@@ -75,6 +95,14 @@ Instanzen (gPAS, DIZ) mit eigenen Credentials, da unterschiedliche Keycloak-Clie
 DIZ braucht zusätzlich den Password-Grant (siehe oben) - dafür `username`/`password` im
 `KeycloakClientConfig` setzen, sonst greift automatisch Client-Credentials (z.B. für gPAS,
 dort bisher unverändert/unverifiziert).
+
+**Bereits gefixter Stolperstein:** Keycloak-Token-Requests (gPAS UND DIZ) schlugen zunächst
+mit "No HttpMessageConverter for ... LinkedMultiValueMap and content type
+application/x-www-form-urlencoded" fehl - der geteilte `RestTemplate`-Bean in
+`AppConfiguration.kt` hatte keinen `FormHttpMessageConverter` registriert
+(`RestTemplateBuilder.messageConverters(...)` ersetzt Spring Boots Default-Konverter
+komplett, statt sie zu ergänzen). Gefixt durch Hinzufügen von `FormHttpMessageConverter()`
+zur Konverter-Liste.
 
 ### 4. TLS/Zertifikate
 
@@ -90,10 +118,14 @@ DNPM:DIP), da alle HTTP-Clients hier das JVM-Standard-Truststore nutzen.
 ## Kompletten Reset nach Codeänderungen automatisieren
 
 `./setup_app_for_testing.sh` fasst den Ablauf git pull → CSS/JS-Bundles bauen → ETL-Image
-bauen → Testservice-Image bauen → beide (neu) starten in einem Befehl zusammen. Setzt eine
-bereits ausgefüllte `deploy/.env` voraus (siehe unten), verschiebt/erstellt sie aber nicht.
-Proxy ist per Default auf `medwww.med.uni-muenchen.de:8080` gesetzt (siehe Variablen am
-Kopf des Scripts) - bei Bedarf per Umgebungsvariable überschreiben, z.B.
+bauen → Testservice-Image bauen → beide (neu) starten in einem Befehl zusammen. Zieht per
+Default den Branch `master` (überschreibbar per `BRANCH=... ./setup_app_for_testing.sh`, z.B.
+um einen Feature-Branch vor dessen Merge zu testen - der Default zeigte lange auf einen
+inzwischen veralteten Session-Branch, der still den Vor-Fix-Stand ausgerollt hat; falls das
+Skript "nichts bewirkt", zuerst `BRANCH` in der Datei bzw. der Aufrufzeile prüfen). Setzt
+eine bereits ausgefüllte `deploy/.env` voraus (siehe unten), verschiebt/erstellt sie aber
+nicht. Proxy ist per Default auf `medwww.med.uni-muenchen.de:8080` gesetzt (siehe Variablen
+am Kopf des Scripts) - bei Bedarf per Umgebungsvariable überschreiben, z.B.
 `PROXY_HOST="" ./setup_app_for_testing.sh` für ein Netz ohne Proxy-Pflicht.
 
 ## Lokal getestet (jetzt, gegen den Mock-Service statt echtem DNPM:DIP)
@@ -115,8 +147,18 @@ gelöst - beide sind unten dokumentiert, damit sie beim nächsten Mal nicht erne
 2. Verifiziert: kompletter Rundlauf über den echten, containerisierten ETL - Sendung an
    `/mtb` → 202 Accepted → ETL pseudonymisiert (Präfix aus `.env` sichtbar im Pseudonym) →
    Weiterleitung an den Mock-Service kommt an.
+3. Das Testservice-Frontend zeigt inzwischen sowohl das tatsächlich gesendete MTB-JSON als
+   auch das vom ETL weitergeleitete JSON groß und formatiert an (vorher: nur die - meist
+   leere - HTTP-Antwort des ETL bzw. ein auf 4000 Zeichen abgeschnittener, unformatierter
+   Empfangs-Body) - siehe `examples/dev/testservice/README.md`.
 
-## Was als Nächstes auf dem Zielsystem zu tun ist
+## Setup auf dem Zielsystem
+
+**Stand:** Dieser komplette Weg wurde inzwischen erfolgreich gegen die echten LMU-Systeme
+durchgespielt (echtes DIZ-Broad-Consent inkl. Rohantwort im Monitoring, echte
+gPAS-Pseudonymisierung inkl. genomDE-Transfer-TAN). Die Schritte unten sind trotzdem als
+Referenz stehen geblieben - für Re-Deploys auf neuen/zurückgesetzten Maschinen läuft man sie
+komplett erneut durch.
 
 1. `deploy/env-sample.lmu.env` nach `deploy/.env` kopieren und ausfüllen
    (Keycloak Client-IDs/Secrets, gPAS SOAP-Endpoint, DIZ-URI, DB-Zugangsdaten, und
@@ -181,6 +223,28 @@ gelöst - beide sind unten dokumentiert, damit sie beim nächsten Mal nicht erne
 - Keine Kafka-Anbindung für LMU (bewusste Entscheidung, siehe Chat-Verlauf: Kafka + ETL im
   selben Compose-Stack ohne HA bringt kaum Vorteile gegenüber REST für Ein- und Ausgang).
 
+## Ideen für später (Backlog)
+
+**MV64-Dashboard in Onkostar:** Für Onkostar-Nutzer ist der komplette ETL-Durchlauf
+(Pseudonymisierung, Consent, Versand, Antwort von DNPM:DIP) unsichtbar - insbesondere bei
+Fehlern weiss niemand, welcher Patient/Fall schon vollständig übermittelt wurde. Wird
+relevanter, sobald neben "initial" auch "correction" und "followup" dazukommen
+(`submission_type` existiert dafür schon: INITIAL/ADDITION/CORRECTION/FOLLOWUP/TEST/UNKNOWN).
+
+Idee: eigenes MV64-Dashboard-Formular in Onkostar, das beim ETL für einen Fall nachfragt, was
+passiert ist. Wichtig dabei: Die Rückwärtssuche "PatientID → Pseudonym neu berechnen → in
+`request` suchen" funktioniert bei `GPAS_KEYCLOAK` nicht zuverlässig, da die Vorgangsnummer
+bei jedem Aufruf frisch erzeugt wird (nicht deterministisch, siehe oben). Die `case_id`
+(`X-Case-Id`-Header) ist dagegen stabil und von Onkostar aus bekannt - der richtige Schlüssel
+für so einen Lookup, nicht `patient_pseudonym`/`pid`.
+
+Empfehlung: kein neues UI im ETL, sondern ein schlanker REST-Endpunkt (z.B.
+`GET /api/case/{caseId}/status`), token-gesichert wie `/mtb`, den das Onkostar-Dashboard
+abruft. `RequestRepository` bräuchte dafür noch eine Lookup-Methode nach `case_id` (gibt es
+aktuell nicht). Offene Frage vor Umsetzung: kurz prüfen, ob der neue Datenkanal zurück zu
+Onkostar (reine Status-Metadaten, kein Patientendateninhalt) datenschutzrechtlich unkritisch
+ist.
+
 ## Bekannter, vorbestehender Test-Fehler (nicht LMU-bezogen)
 
 `GicsConsentServiceTest > convertGicsResultToMiiBroadConsent` und
@@ -196,4 +260,5 @@ origin    -> Kruxinger/mv64e-etl-processor (dieser Fork)
 upstream  -> pcvolkmer/mv64e-etl-processor (Pauls Original)
 ```
 
-Pauls Änderungen reinholen: `git fetch upstream && git merge upstream/master` auf diesem Branch.
+Pauls Änderungen reinholen: `git fetch upstream && git merge upstream/master` auf `master`
+(direkt - kein separater LMU-Branch, s.o.).

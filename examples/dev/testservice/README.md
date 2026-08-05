@@ -109,8 +109,8 @@ Zwei zusaetzliche Endpunkte bedienen diesen Pfad:
   involviert ist.
 - `GET /Consent?patient=<PatID>`: mockt DIZ' Consent-Endpunkt. Verifiziert gegen das echte
   System ist das ein simples GET mit direkt angehaengter Patient-ID, kein FHIR-Search mit
-  separaten Parametern (das war die urspruengliche, in `temp.txt`/`LMU-README.md`
-  dokumentierte Annahme - inzwischen widerlegt und im ETL-Code korrigiert). Liefert eine
+  separaten Parametern (das war die urspruengliche, in `LMU-README.md` dokumentierte
+  Annahme - inzwischen widerlegt und im ETL-Code korrigiert). Liefert eine
   Bundle mit einem aktiven, `permit`-Consent (Code/System aus
   `CONSENT_POLICY_CODE`/`CONSENT_POLICY_SYSTEM`, Default = MII-Broad-Consent-Defaults der
   ETL-Config) fuer Patient-IDs, die im Frontend als "hat Consent" markiert wurden, sonst eine

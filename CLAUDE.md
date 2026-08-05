@@ -15,13 +15,17 @@ services, security, transformations, Kafka topics, etc.) — that's the primary
 reference, don't re-derive it from code when the README already documents it.
 
 This is the **LMU fork** (`Kruxinger/mv64e-etl-processor`, upstream is
-`pcvolkmer/mv64e-etl-processor`). LMU-specific additions (two-step
-Keycloak-secured gPAS pseudonymization, Keycloak-secured DIZ Broad Consent,
-CA-cert embedding, deploy tooling) are documented in `LMU-README.md` — read
-that first if working on anything Keycloak/gPAS/DIZ-related. `temp.txt` is a
-running handoff log of fixes/gotchas found while verifying the fork against
-the real target systems; check it before re-investigating something that
-looks LMU-specific.
+`pcvolkmer/mv64e-etl-processor`), developed directly on `master` (this fork
+has no separate long-lived integration branch). LMU-specific additions
+(two-step Keycloak-secured gPAS pseudonymization, Keycloak-secured DIZ
+Broad Consent, CA-cert embedding, deploy tooling) are documented in
+`LMU-README.md` — read that first if working on anything
+Keycloak/gPAS/DIZ-related. See "LMU fork gotchas" at the end of this file
+for non-obvious bugs already found and fixed while verifying the fork
+against the real target systems, so they don't get re-investigated. For
+local end-to-end testing without real gPAS/DIZ/DNPM:DIP, use
+`examples/dev/testservice` (see its README) — its UI shows the full
+sent/received MTB JSON, pretty-printed.
 
 ## Commands
 
@@ -90,12 +94,17 @@ Package layout under `dev.dnpm.etl.processor` (mixed `src/main/kotlin` and
   `app.pseudonymize.generator` (`BUILDIN` = local SHA-256+prefix, `GPAS` =
   upstream single-call gPAS — REST or SOAP depending on whether
   `app.pseudonymize.gpas.uri` or `.soap-endpoint` is set, see
-  `AppConfiguration`'s two separate `@ConditionalOnProperty` beans for it).
-  `PseudonymizeService` wraps whichever `Generator` is active and decides
-  whether the configured
+  `AppConfiguration`'s two separate `@ConditionalOnProperty` beans for it;
+  `GPAS_KEYCLOAK` = the LMU fork's two-step, Keycloak-secured
+  `KeycloakGpasPseudonymGenerator`, see `LMU-README.md` and "LMU fork
+  gotchas" below). `PseudonymizeService` wraps whichever `Generator` is
+  active and decides whether the configured
   `APP_PSEUDONYMIZE_PREFIX` gets applied — some generators already return
   gPAS's own final pseudonym and must not be re-prefixed, check the `when`
-  branches there before assuming prefix behavior.
+  branches there before assuming prefix behavior. The same `when`-branch
+  pattern governs `PseudonymizeService.genomDeTan()`: `GPAS_KEYCLOAK`
+  reuses its already-generated pseudonym as the genomDE transfer TAN
+  instead of calling `Generator.generateGenomDeTan()` a second time.
 - **`output/`** — `MtbFileSender` implementations (REST to DNPM:DIP, Kafka
   producer) selected the same conditional-bean way.
 - **`monitoring/`** — the `Request` entity/repository (Spring Data JDBC,
@@ -132,3 +141,49 @@ Duplicate detection and "which submission type is this" (`INITIAL` /
 new `Request`'s `Fingerprint` and `submission_type` against the patient's
 prior `Request` rows — see `RequestProcessor.saveAndSend` before changing
 anything in that area, the ordering of checks there is load-bearing.
+
+## LMU fork gotchas
+
+Non-obvious bugs found and fixed while verifying the fork against the real
+target systems (Keycloak, gPAS, DIZ) — check here before re-investigating
+something that looks LMU-specific:
+
+- **Kotlin `@JvmInline value class` properties break in Thymeleaf/SpEL.**
+  `CaseId`, `PatientId`, `PatientPseudonym`, `Tan`, `RequestId` etc. are all
+  inline value classes. When a class property of that type (e.g.
+  `Request.caseId`) is read via Thymeleaf's SpEL
+  (`ReflectivePropertyAccessor`), it can't find the compiler-mangled
+  getter and falls back to raw field access — the field itself is erased
+  to the underlying type at the JVM level, so the template sees a plain
+  `String`, not the wrapper. Templates must use `${request.caseId}`
+  directly, **not** `${request.caseId.value}` (the latter throws
+  `EL1008E: Property or field 'value' cannot be found on object of type
+  'java.lang.String'` and crashes the whole page render — this is exactly
+  what happened to `fragments.html`'s Fall-ID display, since fixed; see
+  how `patientPseudonym`/`tan` are already used correctly there instead).
+  This is unrelated to the `.value` calls on
+  `RequestStatus`/`RequestType`/`SubmissionType`/`Severity` in the same
+  templates — those are regular `enum class`es with a real `value`
+  property and an unmangled getter, so they work fine as-is.
+- **genomDE transfer TAN for `GPAS_KEYCLOAK`.** Upstream generates the
+  genomDE transfer TAN (`metadata.transferTan`) from a *separate* gPAS
+  multi-pseudonym domain (`APP_PSEUDONYMIZE_GPAS_GENOM_DE_TAN_DOMAIN`,
+  default `"ccdn"`) via `Generator.generateGenomDeTan()`. LMU's gPAS has
+  no such domain provisioned, and doesn't need one: the Vorgangsnummer
+  that `KeycloakGpasPseudonymGenerator.generate()` already produces is
+  itself a fresh, per-submission pseudonym traceable back to the patient
+  via the `arbeitsnummer` domain — exactly what a transfer TAN needs.
+  `PseudonymizeService.genomDeTan()` special-cases this generator and
+  reuses that value instead of requesting a second one;
+  `KeycloakGpasPseudonymGenerator.generateGenomDeTan()` itself now throws
+  `UnsupportedOperationException` if ever called directly (it isn't, via
+  `PseudonymizeService`).
+- **Shared `RestTemplate` bean and form-encoded requests.** The
+  `RestTemplate` bean in `AppConfiguration.kt` is built via
+  `RestTemplateBuilder.messageConverters(...)`, which *replaces* Spring
+  Boot's default converters rather than appending to them.
+  `FormHttpMessageConverter` must be explicitly included in that list, or
+  Keycloak token requests (`application/x-www-form-urlencoded`, used by
+  both gPAS's and DIZ's `KeycloakTokenProvider`) fail with "No
+  HttpMessageConverter for ... LinkedMultiValueMap and content type
+  application/x-www-form-urlencoded".

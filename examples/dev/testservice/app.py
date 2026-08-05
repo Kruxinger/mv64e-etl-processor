@@ -330,7 +330,7 @@ def consent_search():
     """Mocks DIZ's Consent endpoint that KeycloakDizConsentService queries - verified against
     the real system to be a plain "GET [uri]<patientId>" with the id appended directly (not a
     FHIR search with separate query params, which was the original, unverified assumption - see
-    temp.txt/LMU-README.md). APP_CONSENT_DIZ_URI must therefore end in "/Consent?patient=" so
+    LMU-README.md). APP_CONSENT_DIZ_URI must therefore end in "/Consent?patient=" so
     the id lands in the "patient" query param read here. Returns a permit Bundle for patient ids
     marked via /send's "has_consent" checkbox, an empty Bundle (no entries -> "not asked") for
     everything else."""
