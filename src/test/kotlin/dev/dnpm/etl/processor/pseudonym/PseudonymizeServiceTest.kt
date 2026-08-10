@@ -20,6 +20,7 @@
 
 package dev.dnpm.etl.processor.pseudonym
 
+import dev.dnpm.etl.processor.CaseId
 import dev.dnpm.etl.processor.PatientId
 import dev.dnpm.etl.processor.PatientPseudonym
 import dev.dnpm.etl.processor.config.PseudonymizeConfigProperties
@@ -79,6 +80,19 @@ class PseudonymizeServiceTest {
     mtbFile.pseudonymizeWith(pseudonymizeService)
 
     assertThat(mtbFile.patient.id).isEqualTo("123")
+  }
+
+  @Test
+  fun shouldUseCaseIdNotPatientIdForKeycloakGpas(@Mock generator: KeycloakGpasPseudonymGenerator) {
+    // LMU fork: gPAS's 'arbeitsnummer' domain is looked up by Fall-ID (X-Case-Id header), not by
+    // the Mtb payload's patient id - see KeycloakGpasPseudonymGenerator's KDoc.
+    doAnswer { it.arguments[0] }.whenever(generator).generate(anyString())
+
+    val pseudonymizeService = PseudonymizeService(generator, PseudonymizeConfigProperties())
+
+    mtbFile.pseudonymizeWith(pseudonymizeService, CaseId("456"))
+
+    assertThat(mtbFile.patient.id).isEqualTo("456")
   }
 
   @Test

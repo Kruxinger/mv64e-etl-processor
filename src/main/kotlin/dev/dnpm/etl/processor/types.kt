@@ -46,9 +46,10 @@ fun randomRequestId() = RequestId(UUID.randomUUID().toString())
 fun emptyPatientId() = PatientId("")
 
 /**
- * Local case/Fallnummer identifier from the source system (e.g. Onkostar). Not part of the
- * DNPM V2 MTB data model - it is only used for correlation within this ETL-Processor instance
- * and never forwarded to downstream systems.
+ * Local case/Fall-ID identifier from the source system (e.g. Onkostar). Not part of the DNPM V2
+ * MTB data model and never forwarded to DNPM:DIP. Used for correlation within this ETL-Processor
+ * instance and - LMU fork - as the id gPAS's 'arbeitsnummer' domain is looked up by, see
+ * [dev.dnpm.etl.processor.pseudonym.KeycloakGpasPseudonymGenerator].
  *
  * @since 0.16.4
  */

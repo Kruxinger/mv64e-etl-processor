@@ -20,6 +20,7 @@
 
 package dev.dnpm.etl.processor.pseudonym
 
+import dev.dnpm.etl.processor.CaseId
 import dev.dnpm.etl.processor.PatientId
 import dev.dnpm.etl.processor.PatientPseudonym
 import dev.dnpm.etl.processor.config.PseudonymizeConfigProperties
@@ -28,6 +29,12 @@ class PseudonymizeService(
     private val generator: Generator,
     private val configProperties: PseudonymizeConfigProperties,
 ) {
+    /**
+     * Used where no [CaseId] is available (currently only patient-deletion requests). LMU fork:
+     * [KeycloakGpasPseudonymGenerator] still resolves against [patientId] here, since the
+     * Fall-ID it actually needs (see [patientPseudonym] with a [CaseId]) isn't known at the call
+     * site - the `/mtb/{patientId}` deletion endpoint has no `X-Case-Id` header to draw one from.
+     */
     fun patientPseudonym(patientId: PatientId): PatientPseudonym =
         when (generator) {
             // LMU fork: KeycloakGpasPseudonymGenerator.generate() resolves the Arbeitsnummer,
@@ -39,6 +46,21 @@ class PseudonymizeService(
             -> PatientPseudonym(generator.generate(patientId.value))
             else ->
                 PatientPseudonym("${configProperties.prefix}_${generator.generate(patientId.value)}")
+        }
+
+    /**
+     * Like [patientPseudonym], but for generators that must look up the pseudonym via the
+     * Fall-ID ([caseId], the `X-Case-Id` header) rather than the Mtb payload's patient id - LMU's
+     * [KeycloakGpasPseudonymGenerator], which looks up its gPAS 'arbeitsnummer' domain by Fall-ID,
+     * not PatID. All other generators behave exactly as [patientPseudonym].
+     */
+    fun patientPseudonym(
+        patientId: PatientId,
+        caseId: CaseId,
+    ): PatientPseudonym =
+        when (generator) {
+            is KeycloakGpasPseudonymGenerator -> PatientPseudonym(generator.generate(caseId.value))
+            else -> patientPseudonym(patientId)
         }
 
     fun genomDeTan(

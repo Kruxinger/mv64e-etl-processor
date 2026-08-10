@@ -182,6 +182,36 @@ something that looks LMU-specific:
   now returns the Arbeitsnummer only; a separate `generateVorgangsnummer()`
   creates the Vorgangsnummer from an already-resolved Arbeitsnummer and is
   used only for the transfer TAN.
+- **gPAS's `arbeitsnummer` lookup keys off the Fall-ID (`X-Case-Id` header),
+  not `patient.id`.** `KeycloakGpasPseudonymGenerator.generate()` originally
+  received `mtbFile.patient.id` (routed through
+  `PseudonymizeService.patientPseudonym(patientId)`) as if that were the
+  case id gPAS's `arbeitsnummer` domain expects. It isn't — the value gPAS
+  needs is the same Fall-ID (`CaseId`) already threaded through
+  `RequestProcessor` for DIZ consent lookups, delivered via the `X-Case-Id`
+  header, not the Mtb payload's `patient.id`. Fixed by adding a
+  `patientPseudonym(patientId, caseId)` overload to `PseudonymizeService`
+  (only `KeycloakGpasPseudonymGenerator` uses the `caseId`; every other
+  generator still behaves exactly as before) and a matching non-infix
+  `Mtb.pseudonymizeWith(pseudonymizeService, caseId)` overload in
+  `extensions.kt` that `RequestProcessor.processMtbFile` now calls instead
+  of the infix one-arg version. The one-arg overloads are kept exactly as
+  they were and are still used by `RequestProcessor.processDeletion` — the
+  `/mtb/{patientId}` deletion endpoint has no `X-Case-Id` header to draw a
+  case id from, so it's a known, accepted gap, not something the above fix
+  touches.
+- **`arbeitsnummer` needs a 10-digit id, zero-padded — not a fixed `"00"`
+  prefix.** gPAS's `arbeitsnummer` domain requires an exactly
+  `GpasKeycloakConfigProperties.arbeitsnummerLength`-digit (default 10),
+  purely numeric case id. The Fall-ID from Onkostar is usually shorter
+  (typically 8 digits). An earlier version prepended a fixed 2-character
+  string (`arbeitsnummerPrefix`, default `"00"`) unconditionally, which only
+  produces a correct 10-digit id when the Fall-ID happens to be exactly 8
+  digits — anything else silently under- or over-pads it. Fixed:
+  `KeycloakGpasPseudonymGenerator.requireNumericCaseId()` now validates the
+  raw id is purely numeric first, then left-pads with zeros
+  (`id.padStart(arbeitsnummerLength, '0')`) up to the configured length,
+  a no-op if the id is already that long or longer.
 - **genomDE transfer TAN for `GPAS_KEYCLOAK`.** Upstream generates the
   genomDE transfer TAN (`metadata.transferTan`) from a *separate* gPAS
   multi-pseudonym domain (`APP_PSEUDONYMIZE_GPAS_GENOM_DE_TAN_DOMAIN`,

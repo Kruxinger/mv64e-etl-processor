@@ -29,15 +29,16 @@ import org.springframework.retry.support.RetryTemplate
  * Unlike upstream's [GpasSoapPseudonymGenerator] (single gPAS domain call per pseudonym),
  * this generator chains two gPAS domains, but the two results serve two *different* purposes:
  *
- * 1. FallnummerMV -> gPAS domain 'arbeitsnummer' -> Arbeitsnummer (stable per patient) via
- *    [GpasSoapService.getPseudonymFor] - looks up only, does *not* create. If the Arbeitsnummer
- *    was never registered for this case elsewhere, this fails loudly rather than silently
- *    creating one - verified against a working reference implementation; if that assumption
- *    turns out wrong in practice (i.e. Arbeitsnummer *should* be auto-created here), switch
- *    this call to [GpasSoapService.getOrCreatePseudonymFor] instead. **This is the PatID
- *    pseudonym** ([generate]) - stable across resubmissions of the same patient, which is what
- *    dedup/submission-type detection in `RequestProcessor` (keyed off `patientPseudonym`)
- *    requires.
+ * 1. Fall-ID (the local case id, delivered via the `X-Case-Id` HTTP header - see
+ *    [dev.dnpm.etl.processor.CaseId], **not** `patient.id` from the Mtb payload) -> gPAS domain
+ *    'arbeitsnummer' -> Arbeitsnummer (stable per patient) via [GpasSoapService.getPseudonymFor]
+ *    - looks up only, does *not* create. If the Arbeitsnummer was never registered for this case
+ *    elsewhere, this fails loudly rather than silently creating one - verified against a working
+ *    reference implementation; if that assumption turns out wrong in practice (i.e. Arbeitsnummer
+ *    *should* be auto-created here), switch this call to [GpasSoapService.getOrCreatePseudonymFor]
+ *    instead. **This is the PatID pseudonym** ([generate]) - stable across resubmissions of the
+ *    same patient, which is what dedup/submission-type detection in `RequestProcessor` (keyed off
+ *    `patientPseudonym`) requires.
  * 2. Arbeitsnummer -> gPAS domain 'vorgangsnummer' -> Vorgangsnummer via
  *    [GpasSoapService.createPseudonymFor] - creates a fresh one every time, i.e. every
  *    processing run gets its own Vorgangsnummer rather than reusing one across resubmissions.
@@ -46,10 +47,12 @@ import org.springframework.retry.support.RetryTemplate
  *    transfer TAN needs, and it is still traceable back to the patient via the Arbeitsnummer it
  *    was created from.
  *
- * The incoming id is expected to be purely numeric (the FallnummerMV/case id as delivered by
- * Onkostar); this is *not* a mandatory field in Onkostar's "DNPM Klinik/Anamnese" form, so an
- * empty or non-numeric value is treated as a hard, clearly-reported error rather than silently
- * producing a bogus pseudonym or throwing an opaque NPE deep inside the SOAP call.
+ * The incoming id is expected to be purely numeric (the Fall-ID as delivered by Onkostar via the
+ * `X-Case-Id` header); an empty or non-numeric value is treated as a hard, clearly-reported error
+ * rather than silently producing a bogus pseudonym or throwing an opaque NPE deep inside the SOAP
+ * call. gPAS's 'arbeitsnummer' domain requires exactly
+ * [GpasKeycloakConfigProperties.arbeitsnummerLength] digits; the Fall-ID is usually shorter, so
+ * it gets left-padded with zeros - see [requireNumericCaseId].
  */
 class KeycloakGpasPseudonymGenerator(
     private val keycloakCfg: GpasKeycloakConfigProperties,
@@ -58,7 +61,10 @@ class KeycloakGpasPseudonymGenerator(
 ) : Generator {
     private val logger = LoggerFactory.getLogger(KeycloakGpasPseudonymGenerator::class.java)
 
-    /** Resolves the Arbeitsnummer for [id] - this is the PatID pseudonym, stable per patient. */
+    /**
+     * Resolves the Arbeitsnummer for the Fall-ID [id] (the `X-Case-Id` header value, see the
+     * class KDoc) - this is the PatID pseudonym, stable per patient.
+     */
     override fun generate(id: String): String =
         retryTemplate.execute<String, Exception> {
             val caseId = requireNumericCaseId(id)
@@ -90,24 +96,20 @@ class KeycloakGpasPseudonymGenerator(
         }
 
     /**
-     * gPAS expects the case id prefixed for the 'arbeitsnummer' domain (prefix added if not
-     * already present) and requires it to be numeric.
+     * gPAS's 'arbeitsnummer' domain requires a purely numeric, exactly
+     * [GpasKeycloakConfigProperties.arbeitsnummerLength]-digit case id. The Fall-ID as delivered
+     * by Onkostar is usually shorter (typically 8 digits), so it gets left-padded with zeros up
+     * to that length - not prepended with a fixed literal prefix.
      */
     private fun requireNumericCaseId(id: String): String {
         require(id.isNotBlank()) {
-            "Cannot pseudonymize a blank/missing FallnummerMV - check the incoming Mtb file"
+            "Cannot pseudonymize a blank/missing Fall-ID (X-Case-Id) - check the incoming request"
         }
-        val prefixed =
-            if (id.startsWith(keycloakCfg.arbeitsnummerPrefix)) {
-                id
-            } else {
-                "${keycloakCfg.arbeitsnummerPrefix}$id"
-            }
-        require(prefixed.all { it.isDigit() }) {
+        require(id.all { it.isDigit() }) {
             // deliberately not including the raw id value here - it's an unpseudonymized case
             // identifier and this message can end up in application logs
-            "FallnummerMV is not numeric (length ${id.length}) - gPAS 'arbeitsnummer' domain requires a numeric case id"
+            "Fall-ID (X-Case-Id) is not numeric (length ${id.length}) - gPAS 'arbeitsnummer' domain requires a numeric case id"
         }
-        return prefixed
+        return id.padStart(keycloakCfg.arbeitsnummerLength, '0')
     }
 }

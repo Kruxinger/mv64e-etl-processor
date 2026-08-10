@@ -19,10 +19,29 @@ Neu: [`GpasKeycloakConfigProperties`](src/main/kotlin/dev/dnpm/etl/processor/con
 [`KeycloakGpasPseudonymGenerator`](src/main/kotlin/dev/dnpm/etl/processor/pseudonym/KeycloakGpasPseudonymGenerator.kt),
 [`BearerTokenOutInterceptor`](src/main/kotlin/dev/dnpm/etl/processor/pseudonym/BearerTokenOutInterceptor.kt)
 
-FallnummerMV → gPAS-Domain `arbeitsnummer` → Arbeitsnummer (= finales PatID-Pseudonym) → gPAS-Domain
-`vorgangsnummer` → Vorgangsnummer (= genomDE-Transfer-TAN, siehe unten). Pauls Original macht nur
-einen direkten Call pro Pseudonym-Art. Auth per Keycloak-Bearer-Token (SOAP-Header), nicht
-Basic-Auth.
+Fall-ID (`X-Case-Id`-Header) → gPAS-Domain `arbeitsnummer` → Arbeitsnummer (= finales
+PatID-Pseudonym) → gPAS-Domain `vorgangsnummer` → Vorgangsnummer (= genomDE-Transfer-TAN, siehe
+unten). Pauls Original macht nur einen direkten Call pro Pseudonym-Art. Auth per
+Keycloak-Bearer-Token (SOAP-Header), nicht Basic-Auth.
+
+**Wichtig, ursprünglich verwechselt und gefixt:** Eingangswert für den `arbeitsnummer`-Schritt ist
+die **Fall-ID aus dem `X-Case-Id`-Header** (dieselbe ID, die auch für die DIZ-Consent-Abfrage
+verwendet wird, s.u.) - **nicht** `patient.id` aus dem Mtb-JSON. `RequestProcessor` reicht sie
+über `Mtb.pseudonymizeWith(pseudonymizeService, caseId)` durch (zweite, nicht-infix Überladung von
+`pseudonymizeWith` in `extensions.kt`); `PseudonymizeService.patientPseudonym(patientId, caseId)`
+nutzt sie nur für `KeycloakGpasPseudonymGenerator`, alle anderen Generatoren bleiben bei
+`patient.id`. Die einzige Ausnahme ist die Patienten-Löschung
+(`MtbFileRestController.deleteData`, `RequestProcessor.processDeletion`) - der Endpunkt kennt nur
+eine PatientId aus dem Pfad, keinen `X-Case-Id`-Header, pseudonymisiert für `GPAS_KEYCLOAK` also
+weiterhin (wie bisher) über die PatientId.
+
+**Ebenfalls gefixt: Zehnstellig statt fixer "00"-Präfix.** gPAS' `arbeitsnummer`-Domäne verlangt
+eine exakt 10-stellige, rein numerische ID. Die Fall-ID aus Onkostar ist meist kürzer (typischerweise
+8-stellig) und wird daher mit führenden Nullen bis auf diese Länge aufgefüllt (`String.padStart`,
+nicht ein fix vorangestelltes `"00"`) - siehe `arbeitsnummerLength` in
+`GpasKeycloakConfigProperties` (Default `10`,
+`APP_PSEUDONYMIZE_GPAS_KEYCLOAK_ARBEITSNUMMERLENGTH`) und
+`KeycloakGpasPseudonymGenerator.requireNumericCaseId()`.
 
 **Gegen das echte System verifiziert** (per Python-Referenzimplementierung, analog zum
 DIZ-Consent-Vorgehen): die zwei gPAS-SOAP-Operationen sind **nicht** dieselbe
@@ -68,11 +87,11 @@ Service-Users), nicht Client-Credentials. Der MVConsent kommt weiterhin unverän
 im Mtb-JSON von Onkostar - daran wurde nichts geändert.
 
 **Wichtig, ebenfalls verifiziert:** DIZ' Broad Consent ist über die **Fall-ID** (lokale
-Fallnummer aus Onkostar) verknüpft, nicht über `patient.id` im Mtb-JSON (das ist die
-FallnummerMV, s.u. - eine andere ID). Die Fall-ID kommt separat über den `X-Case-Id`-Header
-(siehe `MtbFileRestController`/`CaseId` in `types.kt`) und wird nur zur DIZ-Consent-Abfrage
-verwendet, nirgendwo sonst im Payload. `ConsentProcessor.consentGatedCheckAndTryEmbedding`
-nutzt sie, wenn der Header gesetzt ist, sonst fällt sie zurück auf `patient.id` (z.B. für
+Fallnummer aus Onkostar) verknüpft, nicht über `patient.id` im Mtb-JSON - eine andere ID. Die
+Fall-ID kommt separat über den `X-Case-Id`-Header (siehe `MtbFileRestController`/`CaseId` in
+`types.kt`) und wird für die DIZ-Consent-Abfrage sowie (s.o.) für die gPAS-Pseudonymisierung
+verwendet, nirgendwo sonst im Payload. `ConsentProcessor.consentGatedCheckAndTryEmbedding` nutzt
+sie, wenn der Header gesetzt ist, sonst fällt sie zurück auf `patient.id` (z.B. für
 Kafka-Requests, die den Header nicht kennen, oder für Pauls gics/gics_get_bc, die weiterhin
 patientenbezogen abfragen).
 

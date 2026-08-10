@@ -81,7 +81,7 @@ class RequestProcessor(
 
         try {
             val patientId = PatientId(mtbFile.patient.id)
-            val patientPseudonym = mtbFile pseudonymizeWith pseudonymizeService
+            val patientPseudonym = mtbFile.pseudonymizeWith(pseudonymizeService, caseId)
             mtbFile addGenomDeTan pseudonymizeService.genomDeTan(patientId, patientPseudonym)
             mtbFile anonymizeContentWith pseudonymizeService
             val request = DnpmV2MtbFileRequest(requestId, transformationService.transform(mtbFile))

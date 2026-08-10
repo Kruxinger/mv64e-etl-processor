@@ -24,8 +24,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 /**
  * Config for the two-step, Keycloak-secured gPAS pseudonymization used at LMU:
  *
- * FallnummerMV --(gPAS domain [arbeitsnummerDomain])--> Arbeitsnummer
- * --(gPAS domain [vorgangsnummerDomain])--> Vorgangsnummer (= final PatID pseudonym)
+ * Fall-ID (X-Case-Id header) --(gPAS domain [arbeitsnummerDomain])--> Arbeitsnummer (= PatID
+ * pseudonym) --(gPAS domain [vorgangsnummerDomain])--> Vorgangsnummer (= genomDE transfer TAN)
  *
  * The gPAS SOAP endpoint itself is configured via [GPasConfigProperties] (uri/soap-endpoint),
  * only the auth mechanism and the two domain names are specific to this generator.
@@ -42,8 +42,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 data class GpasKeycloakConfigProperties(
     val arbeitsnummerDomain: String = "arbeitsnummer",
     val vorgangsnummerDomain: String = "vorgangsnummer",
-    /** Prefix required by gPAS for the arbeitsnummer domain, prepended if not already present. */
-    val arbeitsnummerPrefix: String = "00",
+    /**
+     * gPAS's 'arbeitsnummer' domain requires a case id of exactly this many digits. The Fall-ID
+     * as delivered by Onkostar is usually shorter (typically 8 digits), so it gets left-padded
+     * with zeros up to this length - this is *not* a fixed literal prefix.
+     */
+    val arbeitsnummerLength: Int = 10,
     val tokenUri: String? = null,
     val clientId: String? = null,
     val clientSecret: String? = null,

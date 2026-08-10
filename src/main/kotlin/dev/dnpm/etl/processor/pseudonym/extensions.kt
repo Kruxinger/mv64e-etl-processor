@@ -20,6 +20,7 @@
 
 package dev.dnpm.etl.processor.pseudonym
 
+import dev.dnpm.etl.processor.CaseId
 import dev.dnpm.etl.processor.PatientId
 import dev.dnpm.etl.processor.PatientPseudonym
 import dev.pcvolkmer.mv64e.mtb.ModelProjectConsent
@@ -35,8 +36,24 @@ import org.apache.commons.codec.digest.DigestUtils
  *   transfer TAN, see [PseudonymizeService.genomDeTan]) without generating a second one
  * @since 0.11.0
  */
-infix fun Mtb.pseudonymizeWith(pseudonymizeService: PseudonymizeService): PatientPseudonym {
-  val pseudonym = pseudonymizeService.patientPseudonym(PatientId(this.patient.id))
+infix fun Mtb.pseudonymizeWith(pseudonymizeService: PseudonymizeService): PatientPseudonym =
+    applyPseudonym(pseudonymizeService.patientPseudonym(PatientId(this.patient.id)))
+
+/**
+ * Like the infix [pseudonymizeWith], but for generators that must look up the pseudonym via the
+ * Fall-ID ([caseId], the `X-Case-Id` header) rather than the Mtb payload's patient id - LMU's
+ * [KeycloakGpasPseudonymGenerator]. All other generators behave exactly as the infix overload -
+ * see [PseudonymizeService.patientPseudonym].
+ *
+ * @return The generated [PatientPseudonym], so callers can reuse it (e.g. as the genomDE
+ *   transfer TAN, see [PseudonymizeService.genomDeTan]) without generating a second one
+ */
+fun Mtb.pseudonymizeWith(
+    pseudonymizeService: PseudonymizeService,
+    caseId: CaseId,
+): PatientPseudonym = applyPseudonym(pseudonymizeService.patientPseudonym(PatientId(this.patient.id), caseId))
+
+private fun Mtb.applyPseudonym(pseudonym: PatientPseudonym): PatientPseudonym {
   val patientPseudonym = pseudonym.value
 
   this.episodesOfCare?.filterNotNull()?.forEach { it.patient?.id = patientPseudonym }

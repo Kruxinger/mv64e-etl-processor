@@ -38,7 +38,7 @@ class KeycloakGpasPseudonymGeneratorTest {
         GpasKeycloakConfigProperties(
             arbeitsnummerDomain = "arbeitsnummer",
             vorgangsnummerDomain = "vorgangsnummer",
-            arbeitsnummerPrefix = "00",
+            arbeitsnummerLength = 10,
         )
 
     private val retryTemplate = RetryTemplate.builder().maxAttempts(1).build()
@@ -47,7 +47,7 @@ class KeycloakGpasPseudonymGeneratorTest {
     fun shouldResolveArbeitsnummerAsPatIdPseudonym(
         @Mock gpasSoapService: GpasSoapService,
     ) {
-        whenever(gpasSoapService.getPseudonymFor("00123", "arbeitsnummer"))
+        whenever(gpasSoapService.getPseudonymFor("0000000123", "arbeitsnummer"))
             .thenReturn("ARB-1")
 
         val generator =
@@ -60,15 +60,15 @@ class KeycloakGpasPseudonymGeneratorTest {
         val result = generator.generate("123")
 
         assertThat(result).isEqualTo("ARB-1")
-        verify(gpasSoapService).getPseudonymFor("00123", "arbeitsnummer")
+        verify(gpasSoapService).getPseudonymFor("0000000123", "arbeitsnummer")
         verify(gpasSoapService, never()).createPseudonymFor(any(), any())
     }
 
     @Test
-    fun shouldNotDoublePrefixCaseIdThatAlreadyStartsWithPrefix(
+    fun shouldPadTypicalEightDigitFallIdToTenDigits(
         @Mock gpasSoapService: GpasSoapService,
     ) {
-        whenever(gpasSoapService.getPseudonymFor("00123", "arbeitsnummer"))
+        whenever(gpasSoapService.getPseudonymFor("0021335882", "arbeitsnummer"))
             .thenReturn("ARB-1")
 
         val generator =
@@ -78,9 +78,28 @@ class KeycloakGpasPseudonymGeneratorTest {
                 gpasSoapService,
             )
 
-        generator.generate("00123")
+        generator.generate("21335882")
 
-        verify(gpasSoapService).getPseudonymFor("00123", "arbeitsnummer")
+        verify(gpasSoapService).getPseudonymFor("0021335882", "arbeitsnummer")
+    }
+
+    @Test
+    fun shouldNotPadFallIdThatIsAlreadyTenDigits(
+        @Mock gpasSoapService: GpasSoapService,
+    ) {
+        whenever(gpasSoapService.getPseudonymFor("1234567890", "arbeitsnummer"))
+            .thenReturn("ARB-1")
+
+        val generator =
+            KeycloakGpasPseudonymGenerator(
+                keycloakConfigProperties,
+                retryTemplate,
+                gpasSoapService,
+            )
+
+        generator.generate("1234567890")
+
+        verify(gpasSoapService).getPseudonymFor("1234567890", "arbeitsnummer")
     }
 
     @Test
