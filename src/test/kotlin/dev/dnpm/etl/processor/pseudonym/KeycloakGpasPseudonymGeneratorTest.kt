@@ -26,6 +26,8 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
+import org.mockito.kotlin.any
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.retry.support.RetryTemplate
@@ -42,13 +44,11 @@ class KeycloakGpasPseudonymGeneratorTest {
     private val retryTemplate = RetryTemplate.builder().maxAttempts(1).build()
 
     @Test
-    fun shouldChainArbeitsnummerAndVorgangsnummer(
+    fun shouldResolveArbeitsnummerAsPatIdPseudonym(
         @Mock gpasSoapService: GpasSoapService,
     ) {
         whenever(gpasSoapService.getPseudonymFor("00123", "arbeitsnummer"))
             .thenReturn("ARB-1")
-        whenever(gpasSoapService.createPseudonymFor("ARB-1", "vorgangsnummer"))
-            .thenReturn("VOR-1")
 
         val generator =
             KeycloakGpasPseudonymGenerator(
@@ -59,9 +59,9 @@ class KeycloakGpasPseudonymGeneratorTest {
 
         val result = generator.generate("123")
 
-        assertThat(result).isEqualTo("VOR-1")
+        assertThat(result).isEqualTo("ARB-1")
         verify(gpasSoapService).getPseudonymFor("00123", "arbeitsnummer")
-        verify(gpasSoapService).createPseudonymFor("ARB-1", "vorgangsnummer")
+        verify(gpasSoapService, never()).createPseudonymFor(any(), any())
     }
 
     @Test
@@ -70,8 +70,6 @@ class KeycloakGpasPseudonymGeneratorTest {
     ) {
         whenever(gpasSoapService.getPseudonymFor("00123", "arbeitsnummer"))
             .thenReturn("ARB-1")
-        whenever(gpasSoapService.createPseudonymFor("ARB-1", "vorgangsnummer"))
-            .thenReturn("VOR-1")
 
         val generator =
             KeycloakGpasPseudonymGenerator(
@@ -83,6 +81,26 @@ class KeycloakGpasPseudonymGeneratorTest {
         generator.generate("00123")
 
         verify(gpasSoapService).getPseudonymFor("00123", "arbeitsnummer")
+    }
+
+    @Test
+    fun shouldCreateFreshVorgangsnummerFromArbeitsnummerAsGenomDeTan(
+        @Mock gpasSoapService: GpasSoapService,
+    ) {
+        whenever(gpasSoapService.createPseudonymFor("ARB-1", "vorgangsnummer"))
+            .thenReturn("VOR-1")
+
+        val generator =
+            KeycloakGpasPseudonymGenerator(
+                keycloakConfigProperties,
+                retryTemplate,
+                gpasSoapService,
+            )
+
+        val result = generator.generateVorgangsnummer("ARB-1")
+
+        assertThat(result).isEqualTo("VOR-1")
+        verify(gpasSoapService).createPseudonymFor("ARB-1", "vorgangsnummer")
     }
 
     @Test
@@ -118,8 +136,9 @@ class KeycloakGpasPseudonymGeneratorTest {
     fun shouldRejectDirectGenomDeTanGeneration(
         @Mock gpasSoapService: GpasSoapService,
     ) {
-        // PseudonymizeService.genomDeTan() special-cases this generator and reuses the
-        // Vorgangsnummer from generate() instead of calling this method - see its KDoc.
+        // PseudonymizeService.genomDeTan() special-cases this generator and calls
+        // generateVorgangsnummer() with the already-resolved Arbeitsnummer instead of calling
+        // this method - see its KDoc.
         val generator =
             KeycloakGpasPseudonymGenerator(
                 keycloakConfigProperties,

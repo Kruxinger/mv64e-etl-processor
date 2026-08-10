@@ -20,6 +20,8 @@
 
 package dev.dnpm.etl.processor.pseudonym
 
+import dev.dnpm.etl.processor.PatientId
+import dev.dnpm.etl.processor.PatientPseudonym
 import dev.dnpm.etl.processor.config.PseudonymizeConfigProperties
 import dev.pcvolkmer.mv64e.mtb.*
 import java.time.Instant
@@ -31,6 +33,7 @@ import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 @ExtendWith(MockitoExtension::class)
@@ -67,7 +70,7 @@ class PseudonymizeServiceTest {
 
   @Test
   fun shouldNotUsePseudonymPrefixForKeycloakGpas(@Mock generator: KeycloakGpasPseudonymGenerator) {
-    // LMU fork: the Vorgangsnummer from KeycloakGpasPseudonymGenerator is already gPAS's own
+    // LMU fork: the Arbeitsnummer from KeycloakGpasPseudonymGenerator is already gPAS's own
     // final pseudonym, must not get APP_PSEUDONYMIZE_PREFIX prepended - same as GpasPseudonymGenerator
     doAnswer { it.arguments[0] }.whenever(generator).generate(anyString())
 
@@ -76,6 +79,22 @@ class PseudonymizeServiceTest {
     mtbFile.pseudonymizeWith(pseudonymizeService)
 
     assertThat(mtbFile.patient.id).isEqualTo("123")
+  }
+
+  @Test
+  fun shouldCreateGenomDeTanFromArbeitsnummerForKeycloakGpas(
+      @Mock generator: KeycloakGpasPseudonymGenerator
+  ) {
+    // LMU fork: the genomDE transfer TAN is a fresh Vorgangsnummer created from the
+    // already-resolved Arbeitsnummer (= patientPseudonym), not the patientPseudonym itself.
+    whenever(generator.generateVorgangsnummer("ARB-1")).thenReturn("VOR-1")
+
+    val pseudonymizeService = PseudonymizeService(generator, PseudonymizeConfigProperties())
+
+    val tan = pseudonymizeService.genomDeTan(PatientId("123"), PatientPseudonym("ARB-1"))
+
+    assertThat(tan).isEqualTo("VOR-1")
+    verify(generator).generateVorgangsnummer("ARB-1")
   }
 
   @Test

@@ -27,30 +27,29 @@ import org.springframework.retry.support.RetryTemplate
  * Two-step, Keycloak-secured gPAS pseudonymization used at LMU.
  *
  * Unlike upstream's [GpasSoapPseudonymGenerator] (single gPAS domain call per pseudonym),
- * this generator chains two gPAS domains to arrive at the final PatID pseudonym:
+ * this generator chains two gPAS domains, but the two results serve two *different* purposes:
  *
  * 1. FallnummerMV -> gPAS domain 'arbeitsnummer' -> Arbeitsnummer (stable per patient) via
  *    [GpasSoapService.getPseudonymFor] - looks up only, does *not* create. If the Arbeitsnummer
  *    was never registered for this case elsewhere, this fails loudly rather than silently
  *    creating one - verified against a working reference implementation; if that assumption
  *    turns out wrong in practice (i.e. Arbeitsnummer *should* be auto-created here), switch
- *    this call to [GpasSoapService.getOrCreatePseudonymFor] instead.
- * 2. Arbeitsnummer -> gPAS domain 'vorgangsnummer' -> Vorgangsnummer (final pseudonym) via
+ *    this call to [GpasSoapService.getOrCreatePseudonymFor] instead. **This is the PatID
+ *    pseudonym** ([generate]) - stable across resubmissions of the same patient, which is what
+ *    dedup/submission-type detection in `RequestProcessor` (keyed off `patientPseudonym`)
+ *    requires.
+ * 2. Arbeitsnummer -> gPAS domain 'vorgangsnummer' -> Vorgangsnummer via
  *    [GpasSoapService.createPseudonymFor] - creates a fresh one every time, i.e. every
  *    processing run gets its own Vorgangsnummer rather than reusing one across resubmissions.
+ *    **This is the genomDE transfer TAN**, never the PatID pseudonym - see [generateVorgangsnummer]
+ *    and [PseudonymizeService.genomDeTan]; a fresh, per-submission value is exactly what a
+ *    transfer TAN needs, and it is still traceable back to the patient via the Arbeitsnummer it
+ *    was created from.
  *
  * The incoming id is expected to be purely numeric (the FallnummerMV/case id as delivered by
  * Onkostar); this is *not* a mandatory field in Onkostar's "DNPM Klinik/Anamnese" form, so an
  * empty or non-numeric value is treated as a hard, clearly-reported error rather than silently
  * producing a bogus pseudonym or throwing an opaque NPE deep inside the SOAP call.
- *
- * The Vorgangsnummer produced by [generate] is also reused as the genomDE transfer TAN - see
- * [generateGenomDeTan] and [PseudonymizeService.genomDeTan] - instead of requesting a second,
- * separate pseudonym from upstream's
- * [dev.dnpm.etl.processor.config.GPasConfigProperties.genomDeTanDomain] multi-pseudonym domain:
- * it is already exactly what a transfer TAN needs (fresh per submission, traceable back to the
- * patient via the 'arbeitsnummer'), and LMU's gPAS instance has no domain provisioned for that
- * separate upstream mechanism.
  */
 class KeycloakGpasPseudonymGenerator(
     private val keycloakCfg: GpasKeycloakConfigProperties,
@@ -59,31 +58,36 @@ class KeycloakGpasPseudonymGenerator(
 ) : Generator {
     private val logger = LoggerFactory.getLogger(KeycloakGpasPseudonymGenerator::class.java)
 
+    /** Resolves the Arbeitsnummer for [id] - this is the PatID pseudonym, stable per patient. */
     override fun generate(id: String): String =
         retryTemplate.execute<String, Exception> {
             val caseId = requireNumericCaseId(id)
             val arbeitsnummer =
                 gpasSoapService.getPseudonymFor(caseId, keycloakCfg.arbeitsnummerDomain)
-            val vorgangsnummer =
-                gpasSoapService.createPseudonymFor(
-                    arbeitsnummer,
-                    keycloakCfg.vorgangsnummerDomain,
-                )
-            logger.debug("Resolved PatID pseudonym via arbeitsnummer/vorgangsnummer chain")
-            vorgangsnummer
+            logger.debug("Resolved PatID pseudonym via arbeitsnummer domain")
+            arbeitsnummer
         }
 
     /**
      * Not used - [PseudonymizeService.genomDeTan] special-cases [KeycloakGpasPseudonymGenerator]
-     * and reuses the Vorgangsnummer from [generate] as the transfer TAN instead (see the class
-     * KDoc). Throws rather than silently falling back to upstream's separate, unconfigured
-     * genomDE-TAN domain if this is ever invoked directly.
+     * and calls [generateVorgangsnummer] with the already-resolved Arbeitsnummer instead, to
+     * avoid resolving it twice (see the class KDoc). Throws rather than silently falling back to
+     * upstream's separate, unconfigured genomDE-TAN domain if this is ever invoked directly.
      */
     override fun generateGenomDeTan(id: String): String =
         throw UnsupportedOperationException(
-            "KeycloakGpasPseudonymGenerator does not generate a separate genomDE transfer TAN - " +
-                "PseudonymizeService.genomDeTan() reuses the Vorgangsnummer from generate() instead",
+            "KeycloakGpasPseudonymGenerator does not generate a genomDE transfer TAN from a raw id - " +
+                "PseudonymizeService.genomDeTan() calls generateVorgangsnummer() with the Arbeitsnummer instead",
         )
+
+    /**
+     * Creates a fresh Vorgangsnummer for the given, already-resolved [arbeitsnummer] - this is
+     * the genomDE transfer TAN, not the PatID pseudonym (see the class KDoc).
+     */
+    fun generateVorgangsnummer(arbeitsnummer: String): String =
+        retryTemplate.execute<String, Exception> {
+            gpasSoapService.createPseudonymFor(arbeitsnummer, keycloakCfg.vorgangsnummerDomain)
+        }
 
     /**
      * gPAS expects the case id prefixed for the 'arbeitsnummer' domain (prefix added if not

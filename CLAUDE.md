@@ -165,19 +165,37 @@ something that looks LMU-specific:
   `RequestStatus`/`RequestType`/`SubmissionType`/`Severity` in the same
   templates — those are regular `enum class`es with a real `value`
   property and an unmangled getter, so they work fine as-is.
+- **Arbeitsnummer is the PatID pseudonym, Vorgangsnummer is the genomDE
+  transfer TAN — not the other way round.** `KeycloakGpasPseudonymGenerator`
+  chains two gPAS domains: `arbeitsnummer` (looked up, stable per patient)
+  then `vorgangsnummer` (created fresh every call, from the arbeitsnummer).
+  An earlier version of this generator returned the Vorgangsnummer from
+  `generate()` and used it as *both* the PatID pseudonym and the transfer
+  TAN. That's wrong on two counts: it's not what LMU's gPAS domains
+  represent (the Arbeitsnummer is the per-patient identifier; the
+  Vorgangsnummer is a per-submission transaction number), and — more
+  concretely — it silently broke `RequestProcessor`'s dedup/submission-type
+  detection (`INITIAL`/`ADDITION`/`CORRECTION`/`FOLLOWUP`), which keys off
+  `Request.patientPseudonym`: with a fresh Vorgangsnummer as the pseudonym on
+  every call, no two submissions for the same patient ever pseudonymized to
+  the same value, so the prior-request lookup never matched. Fixed: `generate()`
+  now returns the Arbeitsnummer only; a separate `generateVorgangsnummer()`
+  creates the Vorgangsnummer from an already-resolved Arbeitsnummer and is
+  used only for the transfer TAN.
 - **genomDE transfer TAN for `GPAS_KEYCLOAK`.** Upstream generates the
   genomDE transfer TAN (`metadata.transferTan`) from a *separate* gPAS
   multi-pseudonym domain (`APP_PSEUDONYMIZE_GPAS_GENOM_DE_TAN_DOMAIN`,
-  default `"ccdn"`) via `Generator.generateGenomDeTan()`. LMU's gPAS has
-  no such domain provisioned, and doesn't need one: the Vorgangsnummer
-  that `KeycloakGpasPseudonymGenerator.generate()` already produces is
-  itself a fresh, per-submission pseudonym traceable back to the patient
-  via the `arbeitsnummer` domain — exactly what a transfer TAN needs.
-  `PseudonymizeService.genomDeTan()` special-cases this generator and
-  reuses that value instead of requesting a second one;
-  `KeycloakGpasPseudonymGenerator.generateGenomDeTan()` itself now throws
-  `UnsupportedOperationException` if ever called directly (it isn't, via
-  `PseudonymizeService`).
+  default `"ccdn"`) via `Generator.generateGenomDeTan()`. LMU's gPAS has no
+  such domain provisioned, and doesn't need one: the Vorgangsnummer, created
+  fresh per submission from the Arbeitsnummer, is exactly what a transfer TAN
+  needs (traceable back to the patient via the `arbeitsnummer` domain).
+  `PseudonymizeService.genomDeTan()` special-cases this generator and calls
+  `KeycloakGpasPseudonymGenerator.generateVorgangsnummer()` with the
+  already-resolved Arbeitsnummer (the `patientPseudonym`) instead of
+  resolving it a second time or requesting a pseudonym from the unconfigured
+  `ccdn` domain; `Generator.generateGenomDeTan()` itself now throws
+  `UnsupportedOperationException` if ever called directly on this generator
+  (it isn't, via `PseudonymizeService`).
 - **Shared `RestTemplate` bean and form-encoded requests.** The
   `RestTemplate` bean in `AppConfiguration.kt` is built via
   `RestTemplateBuilder.messageConverters(...)`, which *replaces* Spring

@@ -19,9 +19,10 @@ Neu: [`GpasKeycloakConfigProperties`](src/main/kotlin/dev/dnpm/etl/processor/con
 [`KeycloakGpasPseudonymGenerator`](src/main/kotlin/dev/dnpm/etl/processor/pseudonym/KeycloakGpasPseudonymGenerator.kt),
 [`BearerTokenOutInterceptor`](src/main/kotlin/dev/dnpm/etl/processor/pseudonym/BearerTokenOutInterceptor.kt)
 
-FallnummerMV → gPAS-Domain `arbeitsnummer` → Arbeitsnummer → gPAS-Domain `vorgangsnummer` →
-Vorgangsnummer (= finales PatID-Pseudonym). Pauls Original macht nur einen direkten Call pro
-Pseudonym-Art. Auth per Keycloak-Bearer-Token (SOAP-Header), nicht Basic-Auth.
+FallnummerMV → gPAS-Domain `arbeitsnummer` → Arbeitsnummer (= finales PatID-Pseudonym) → gPAS-Domain
+`vorgangsnummer` → Vorgangsnummer (= genomDE-Transfer-TAN, siehe unten). Pauls Original macht nur
+einen direkten Call pro Pseudonym-Art. Auth per Keycloak-Bearer-Token (SOAP-Header), nicht
+Basic-Auth.
 
 **Gegen das echte System verifiziert** (per Python-Referenzimplementierung, analog zum
 DIZ-Consent-Vorgehen): die zwei gPAS-SOAP-Operationen sind **nicht** dieselbe
@@ -35,14 +36,19 @@ hier: Keycloak-**Password-Grant**, nicht Client-Credentials - `GpasKeycloakConfi
 braucht daher zusätzlich `username`/`password` eines Service-Users (Client-ID/-Secret allein
 reichen nicht).
 
-**Update, im Praxisbetrieb verifiziert und gefixt:** Die Vorgangsnummer wird zusätzlich als
-genomDE-Transfer-TAN (`metadata.transferTan`) wiederverwendet, statt wie bei Paul eine
-zweite, unabhängige Pseudonymisierung aus einer separaten gPAS-Multi-Pseudonym-Domäne
-(`APP_PSEUDONYMIZE_GPAS_GENOM_DE_TAN_DOMAIN`, Default `ccdn`) anzufordern - diese Domäne war
-bei uns nie angelegt, jeder `/mtb`-Aufruf schlug deshalb mit "db object for domain ccdn not
-found" fehl. Die Vorgangsnummer erfüllt bereits alles, was eine Transfer-TAN braucht (frisch
-pro Übertragung, über die Arbeitsnummer auf den Patienten rückführbar) - siehe KDoc von
-`KeycloakGpasPseudonymGenerator`/`PseudonymizeService.genomDeTan()` sowie CLAUDE.md
+**Wichtig, ursprünglich vertauscht und gefixt:** Die **Arbeitsnummer** ist das PatID-Pseudonym
+(stabil pro Patient, `KeycloakGpasPseudonymGenerator.generate()`/`PseudonymizeService.patientPseudonym()`)
+- nicht die Vorgangsnummer. Die **Vorgangsnummer** ist die genomDE-Transfer-TAN
+(`metadata.transferTan`, `KeycloakGpasPseudonymGenerator.generateVorgangsnummer()`/
+`PseudonymizeService.genomDeTan()`), frisch pro Verarbeitungslauf aus der Arbeitsnummer erzeugt,
+statt wie bei Paul eine zweite, unabhängige Pseudonymisierung aus einer separaten
+gPAS-Multi-Pseudonym-Domäne (`APP_PSEUDONYMIZE_GPAS_GENOM_DE_TAN_DOMAIN`, Default `ccdn`)
+anzufordern - diese Domäne war bei uns nie angelegt, jeder `/mtb`-Aufruf schlug deshalb mit
+"db object for domain ccdn not found" fehl. Die anfängliche Vertauschung (Vorgangsnummer als
+Pseudonym *und* TAN) brach nebenbei auch die Dedup-/Submission-Type-Erkennung in
+`RequestProcessor`, die über `patientPseudonym` läuft - mit einer bei jedem Aufruf frischen
+Vorgangsnummer als Pseudonym fand die nie den vorherigen Request desselben Patienten. Siehe KDoc
+von `KeycloakGpasPseudonymGenerator`/`PseudonymizeService.genomDeTan()` sowie CLAUDE.md
 "LMU fork gotchas".
 
 Aktivieren: `APP_PSEUDONYMIZE_GENERATOR=GPAS_KEYCLOAK` (statt `GPAS`/`BUILDIN`).
@@ -232,11 +238,12 @@ relevanter, sobald neben "initial" auch "correction" und "followup" dazukommen
 (`submission_type` existiert dafür schon: INITIAL/ADDITION/CORRECTION/FOLLOWUP/TEST/UNKNOWN).
 
 Idee: eigenes MV64-Dashboard-Formular in Onkostar, das beim ETL für einen Fall nachfragt, was
-passiert ist. Wichtig dabei: Die Rückwärtssuche "PatientID → Pseudonym neu berechnen → in
-`request` suchen" funktioniert bei `GPAS_KEYCLOAK` nicht zuverlässig, da die Vorgangsnummer
-bei jedem Aufruf frisch erzeugt wird (nicht deterministisch, siehe oben). Die `case_id`
-(`X-Case-Id`-Header) ist dagegen stabil und von Onkostar aus bekannt - der richtige Schlüssel
-für so einen Lookup, nicht `patient_pseudonym`/`pid`.
+passiert ist. Die Rückwärtssuche "PatientID → Pseudonym neu berechnen → in `request` suchen"
+funktioniert bei `GPAS_KEYCLOAK` seit dem Arbeitsnummer/Vorgangsnummer-Fix wieder zuverlässig
+(`patient_pseudonym` ist jetzt die stabile Arbeitsnummer, nicht mehr die pro Aufruf frische
+Vorgangsnummer - siehe oben). Trotzdem einfacher: die `case_id` (`X-Case-Id`-Header) ist von
+Onkostar aus direkt bekannt und spart den zusätzlichen gPAS-Roundtrip zum Neuberechnen des
+Pseudonyms - der pragmatischere Schlüssel für so einen Lookup.
 
 Empfehlung: kein neues UI im ETL, sondern ein schlanker REST-Endpunkt (z.B.
 `GET /api/case/{caseId}/status`), token-gesichert wie `/mtb`, den das Onkostar-Dashboard

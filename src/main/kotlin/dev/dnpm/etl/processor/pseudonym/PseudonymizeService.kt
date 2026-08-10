@@ -30,9 +30,10 @@ class PseudonymizeService(
 ) {
     fun patientPseudonym(patientId: PatientId): PatientPseudonym =
         when (generator) {
-            // LMU fork: KeycloakGpasPseudonymGenerator's Vorgangsnummer is already gPAS's own,
-            // final pseudonym (see its KDoc) - like GpasPseudonymGenerator, it must not be
-            // prefixed again, otherwise DNPM:DIP would receive a value gPAS never issued.
+            // LMU fork: KeycloakGpasPseudonymGenerator.generate() resolves the Arbeitsnummer,
+            // which is already gPAS's own, final pseudonym (see its KDoc) - like
+            // GpasPseudonymGenerator, it must not be prefixed again, otherwise DNPM:DIP would
+            // receive a value gPAS never issued.
             is GpasPseudonymGenerator,
             is KeycloakGpasPseudonymGenerator,
             -> PatientPseudonym(generator.generate(patientId.value))
@@ -45,13 +46,12 @@ class PseudonymizeService(
         patientPseudonym: PatientPseudonym,
     ): String =
         when (generator) {
-            // LMU fork: KeycloakGpasPseudonymGenerator's Vorgangsnummer is already a fresh,
-            // per-submission pseudonym tied back to the patient via the 'arbeitsnummer' domain -
-            // exactly what a genomDE transfer TAN needs. Reuse it instead of minting a second,
-            // unrelated one from the separate multi-pseudonym domain
-            // (APP_PSEUDONYMIZE_GPAS_GENOM_DE_TAN_DOMAIN, upstream default "ccdn") that this
-            // two-step chain has no use for and that isn't provisioned at LMU.
-            is KeycloakGpasPseudonymGenerator -> patientPseudonym.value
+            // LMU fork: the genomDE transfer TAN for KeycloakGpasPseudonymGenerator is a fresh
+            // Vorgangsnummer created from the already-resolved Arbeitsnummer (= patientPseudonym)
+            // instead of minting a second, unrelated pseudonym from the separate multi-pseudonym
+            // domain (APP_PSEUDONYMIZE_GPAS_GENOM_DE_TAN_DOMAIN, upstream default "ccdn") that
+            // this two-step chain has no use for and that isn't provisioned at LMU.
+            is KeycloakGpasPseudonymGenerator -> generator.generateVorgangsnummer(patientPseudonym.value)
             else -> generator.generateGenomDeTan(patientId.value)
         }
 
